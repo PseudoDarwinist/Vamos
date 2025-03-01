@@ -73,8 +73,24 @@ struct TransactionListSection: View {
 struct TransactionItem_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
-            TransactionItem(transaction: Transaction.sampleTransactions[0])
-            TransactionItem(transaction: Transaction.sampleTransactions[1])
+            TransactionItem(
+                transaction: Transaction(
+                    amount: 12.99,
+                    date: Date(),
+                    merchant: "Preview Merchant",
+                    category: .sample(name: "Food & Drink"),
+                    sourceType: .manual
+                )
+            )
+            TransactionItem(
+                transaction: Transaction(
+                    amount: 24.50,
+                    date: Date().addingTimeInterval(-86400),
+                    merchant: "Another Merchant",
+                    category: .sample(name: "Transportation"),
+                    sourceType: .digital
+                )
+            )
         }
         .previewLayout(.sizeThatFits)
         .padding()

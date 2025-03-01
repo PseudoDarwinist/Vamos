@@ -13,8 +13,7 @@ struct VamosApp: App {
                     case .home:
                         HomeView()
                     case .categories:
-                        Text("Categories View")
-                            .font(.largeTitle)
+                        CategoriesView()
                     case .history:
                         Text("History View")
                             .font(.largeTitle)

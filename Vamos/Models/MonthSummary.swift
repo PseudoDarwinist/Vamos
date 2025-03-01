@@ -61,46 +61,15 @@ extension MonthSummary {
         let components = calendar.dateComponents([.year, .month], from: Date())
         let firstDayOfMonth = calendar.date(from: components)!
         
-        // Sample category summaries
-        let categorySummaries = [
-            CategorySummary(
-                category: .sample(name: "Food & Drink"),
-                amount: 156.75,
-                transactionCount: 8,
-                percentOfTotal: 0.35
-            ),
-            CategorySummary(
-                category: .sample(name: "Transportation"),
-                amount: 89.50,
-                transactionCount: 5,
-                percentOfTotal: 0.20
-            ),
-            CategorySummary(
-                category: .sample(name: "Groceries"),
-                amount: 120.25,
-                transactionCount: 3,
-                percentOfTotal: 0.27
-            ),
-            CategorySummary(
-                category: .sample(name: "Entertainment"),
-                amount: 39.98,
-                transactionCount: 2,
-                percentOfTotal: 0.09
-            ),
-            CategorySummary(
-                category: .sample(name: "Health"),
-                amount: 45.00,
-                transactionCount: 1,
-                percentOfTotal: 0.10
-            )
-        ]
+        // Empty category summaries
+        let categorySummaries: [CategorySummary] = []
         
         return MonthSummary(
             month: firstDayOfMonth,
-            totalSpent: 451.48,
-            transactionCount: 19,
+            totalSpent: 0,
+            transactionCount: 0,
             categorySummaries: categorySummaries,
-            narrativeSummary: "This month, you've spent most on Food & Drink. Your grocery spending is 15% lower than last month, which means your plant is growing well! 🌱"
+            narrativeSummary: "Add your first transaction to see insights about your spending habits."
         )
     }
 }

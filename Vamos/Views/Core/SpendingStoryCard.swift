@@ -27,21 +27,22 @@ struct SpendingStoryCard: View {
                         Image(systemName: "message.fill")
                             .foregroundColor(.white)
                             .padding(6)
-                            .background(Circle().fill(Color.primaryGreen))
+                            .background(Circle().fill(transactionCount > 0 ? Color.primaryGreen : Color.gray))
                         
                         Text("Ask about your spending")
                             .font(.system(.subheadline, design: .rounded))
                             .fontWeight(.medium)
-                            .foregroundColor(.primaryGreen)
+                            .foregroundColor(transactionCount > 0 ? .primaryGreen : .gray)
                         
                         Spacer()
                         
                         Image(systemName: "chevron.right")
-                            .foregroundColor(.primaryGreen)
+                            .foregroundColor(transactionCount > 0 ? .primaryGreen : .gray)
                             .font(.system(size: 14, weight: .medium))
                     }
                     .padding(.vertical, 8)
                 }
+                .disabled(transactionCount == 0)
                 
                 Divider()
                     .background(Color.accent.opacity(0.3))
