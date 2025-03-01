@@ -1,11 +1,20 @@
 import SwiftUI
 import AVFoundation
+import PhotosUI
+import Combine
 
 struct ScannerView: View {
     @State private var activeTab: ScannerTab = .camera
     @State private var capturedImage: UIImage?
     @State private var isShowingCapturedImage = false
+    @State private var isShowingPhotosPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isProcessing = false
+    @State private var transactionResult: Transaction?
     @Environment(\.presentationMode) var presentationMode
+    @State private var cancellables = Set<AnyCancellable>()
+    // Add OCR service for processing
+    private let ocrService = OCRService()
     
     enum ScannerTab {
         case camera
@@ -77,8 +86,7 @@ struct ScannerView: View {
                             
                             Button(action: {
                                 // Process the image
-                                // This would typically call your receipt processing logic
-                                presentationMode.wrappedValue.dismiss()
+                                processReceipt()
                             }) {
                                 Text("Use Photo")
                                     .font(.system(.headline, design: .rounded))
@@ -92,16 +100,108 @@ struct ScannerView: View {
                         .padding(.bottom)
                     }
                 } else {
-                    // Camera view
-                    CameraView(capturedImage: $capturedImage, isShowingCapturedImage: $isShowingCapturedImage)
+                    // Camera view with photo library option for simulator
+                    VStack {
+                        CameraView(capturedImage: $capturedImage, isShowingCapturedImage: $isShowingCapturedImage)
+                        
+                        // Photo library button for simulator testing
+                        Button(action: {
+                            isShowingPhotosPicker = true
+                        }) {
+                            HStack {
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.system(size: 16))
+                                Text("Select from Photo Library")
+                                    .font(.system(.subheadline, design: .rounded))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color.secondaryGreen)
+                            .cornerRadius(12)
+                        }
+                        .padding()
+                    }
                 }
             } else {
                 // Document scanner
                 PDFDocumentView()
             }
+            
+            // Processing indicator
+            if isProcessing {
+                VStack {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .primaryGreen))
+                    
+                    Text("Processing receipt...")
+                        .font(.system(.body, design: .rounded))
+                        .foregroundColor(.primaryGreen)
+                        .padding(.top)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black.opacity(0.3))
+                .edgesIgnoringSafeArea(.all)
+            }
         }
         .background(Color.background.edgesIgnoringSafeArea(.all))
+        .sheet(isPresented: $isShowingPhotosPicker) {
+            PhotosPicker(
+                selection: $selectedPhotoItem,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                Text("Select a receipt image")
+                    .font(.system(.headline, design: .rounded))
+            }
+            .onChange(of: selectedPhotoItem) { newItem in
+                if let newItem = newItem {
+                    Task {
+                        if let data = try? await newItem.loadTransferable(type: Data.self),
+                           let image = UIImage(data: data) {
+                            DispatchQueue.main.async {
+                                capturedImage = image
+                                isShowingCapturedImage = true
+                                isShowingPhotosPicker = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+    
+        private func processReceipt() {
+        guard let image = capturedImage else { return }
+        
+        isProcessing = true
+        
+        // Process receipt using OCR service
+        ocrService.processReceipt(image: image)
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                isProcessing = false
+                switch completion {
+                case .finished:
+                    print("Receipt processing completed successfully")
+                    // Here we successfully processed the receipt and can dismiss the scanner
+                    presentationMode.wrappedValue.dismiss()
+                case .failure(let error):
+                    print("Receipt processing failed: \(error.localizedDescription)")
+                    // You might want to show an error message to the user here
+                }
+            }, receiveValue: { transaction in
+                self.transactionResult = transaction
+                print("Received transaction: \(transaction.merchant) - \(transaction.amount)")
+                
+                // Add the transaction to our store
+                TransactionStore.shared.addTransaction(transaction)
+            })
+            .store(in: &cancellables)
+    }
+    
+    // Store cancellables for Combine subscriptions
     
     private func tabButton(title: String, systemImage: String, tab: ScannerTab) -> some View {
         let isSelected = activeTab == tab
@@ -133,7 +233,7 @@ struct ScannerView: View {
     }
 }
 
-// Camera view using AVFoundation
+// Camera view using AVFoundation - the rest of your existing code remains unchanged 
 struct CameraView: UIViewControllerRepresentable {
     @Binding var capturedImage: UIImage?
     @Binding var isShowingCapturedImage: Bool

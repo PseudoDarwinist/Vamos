@@ -50,20 +50,48 @@ class OCRService {
     
     // Extract structured data from receipt
     func extractStructuredData(from image: UIImage) -> AnyPublisher<[String: Any], Error> {
+        print("🟢 Starting extractStructuredData")
+        
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            print("🔴 Error: Failed to convert image to JPEG data")
             return Fail(error: NSError(domain: "OCRService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to JPEG data"]))
                 .eraseToAnyPublisher()
+        }
+        
+        // Log image details
+        print("🟢 Image size: \(image.size.width) x \(image.size.height)")
+        print("🟢 Image data size: \(Double(imageData.count) / 1024.0) KB")
+        
+        // If image is too large, resize it
+        let maxSizeKB: Double = 1024 // 1MB
+        if Double(imageData.count) / 1024.0 > maxSizeKB {
+            print("🟠 Warning: Image is large (\(Double(imageData.count) / 1024.0) KB), attempting to resize")
+            
+            // Resize image to reduce data size
+            let compressionRatio = maxSizeKB / (Double(imageData.count) / 1024.0)
+            if let resizedImageData = image.jpegData(compressionQuality: CGFloat(compressionRatio * 0.8)) {
+                print("🟢 Resized image data size: \(Double(resizedImageData.count) / 1024.0) KB")
+                return geminiService.extractReceiptInfo(imageData: resizedImageData)
+            }
         }
         
         return geminiService.extractReceiptInfo(imageData: imageData)
     }
     
     // Process receipt and return Transaction object
-    func processReceipt(image: UIImage) -> AnyPublisher<Transaction, Error> {
+
+        func processReceipt(image: UIImage) -> AnyPublisher<Transaction, Error> {
         return extractStructuredData(from: image)
             .map { data -> Transaction in
                 // Parse extracted data
-                let amount = Decimal(string: (data["total_amount"] as? String) ?? "0.0") ?? 0.0
+                let amount: Decimal
+                if let amountString = data["total_amount"] as? String {
+                    amount = Decimal(string: amountString) ?? 0.0
+                } else if let amountNumber = data["total_amount"] as? NSNumber {
+                    amount = Decimal(amountNumber.doubleValue)
+                } else {
+                    amount = 0.0
+                }
                 
                 let dateString = data["date"] as? String ?? ""
                 let dateFormatter = DateFormatter()

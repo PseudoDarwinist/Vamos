@@ -3,10 +3,12 @@ import Combine
 
 struct HomeView: View {
     @State private var monthSummary: MonthSummary = MonthSummary.sample
-    @State private var recentTransactions: [Transaction] = Transaction.sampleTransactions
-    @State private var isLoading: Bool = false
     @State private var showAllTransactions: Bool = false
+    @State private var isLoading: Bool = false
     @State private var cancellables = Set<AnyCancellable>()
+    
+    // Add an ObservedObject for the transaction store
+    @ObservedObject private var transactionStore = TransactionStore.shared
     
     // Services
     private let geminiService = GeminiService()
@@ -28,7 +30,7 @@ struct HomeView: View {
                         // Spending story card
                         SpendingStoryCard(
                             narrativeSummary: monthSummary.narrativeSummary,
-                            transactionCount: monthSummary.transactionCount
+                            transactionCount: transactionStore.transactions.count
                         )
                         .padding(.horizontal)
                         
@@ -54,35 +56,20 @@ struct HomeView: View {
                             }
                             .padding(.horizontal)
                             
-                            // Merchant totals instead of individual transactions
+                            // Merchant totals based on TransactionStore
                             VStack(spacing: 12) {
-                                MerchantTotalItem(
-                                    merchantName: "Swiggy",
-                                    icon: "takeoutbag.and.cup.and.straw.fill",
-                                    amount: 15000,
-                                    description: "Total spending"
-                                )
+                                let merchantTotals = transactionStore.getMerchantTotals()
                                 
-                                MerchantTotalItem(
-                                    merchantName: "Amazon",
-                                    icon: "cart.fill",
-                                    amount: 21450,
-                                    description: "Total spending"
-                                )
+                                // Only show up to 2 merchants when collapsed
+                                let visibleMerchants = showAllTransactions ? merchantTotals : 
+                                                     merchantTotals.count > 2 ? Array(merchantTotals.prefix(2)) : merchantTotals
                                 
-                                if showAllTransactions {
+                                ForEach(visibleMerchants) { merchant in
                                     MerchantTotalItem(
-                                        merchantName: "Uber",
-                                        icon: "car.fill",
-                                        amount: 8500,
-                                        description: "Total spending"
-                                    )
-                                    
-                                    MerchantTotalItem(
-                                        merchantName: "Other",
-                                        icon: "briefcase.fill",
-                                        amount: 5780,
-                                        description: "Total spending"
+                                        merchantName: merchant.merchantName,
+                                        icon: merchant.icon,
+                                        amount: merchant.amount,
+                                        description: "\(merchant.count) transaction\(merchant.count != 1 ? "s" : "")"
                                     )
                                 }
                             }
@@ -118,39 +105,36 @@ struct HomeView: View {
     private func loadData() {
         isLoading = true
         
-        // Simulate network call
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            // Generate nature-themed narrative summary using Gemini
-            let naturePrompt = """
-            Create a nature-themed summary of the following spending data using plant/garden metaphors:
-            - Total spending: ₹22,450
-            - Biggest expense: Amazon at ₹21,450
-            - Food spending increased by 12% from last month
-            
-            Keep it conversational and limit to 2-3 sentences.
-            """
-            
-            geminiService.generateNarrativeSummary(transactions: recentTransactions)
-                .receive(on: DispatchQueue.main)
-                .sink(
-                    receiveCompletion: { completion in
-                        isLoading = false
-                        if case .failure(let error) = completion {
-                            print("Error generating narrative: \(error)")
-                            // Fallback narrative if API fails
-                            monthSummary.narrativeSummary = "Like a garden, your finances have patterns. Your biggest expense was at Amazon (that's like the tallest tree in your financial forest). Your food spending has grown by 12% since last month — perhaps time to prune a bit?"
-                        }
-                    },
-                    receiveValue: { narrativeSummary in
-                        monthSummary.narrativeSummary = narrativeSummary
+        // Generate narrative summary using actual transactions
+        geminiService.generateNarrativeSummary(transactions: transactionStore.transactions)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    isLoading = false
+                    if case .failure(let error) = completion {
+                        print("Error generating narrative: \(error)")
+                        // Fallback narrative if API fails
+                        monthSummary.narrativeSummary = "Like a garden, your finances have patterns. Your biggest expense was at \(self.getTopMerchant()). Keep nurturing your financial garden and watch your savings grow!"
                     }
-                )
-                .store(in: &cancellables)
+                },
+                receiveValue: { narrativeSummary in
+                    monthSummary.narrativeSummary = narrativeSummary
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    // Helper to get top merchant for the fallback narrative
+    private func getTopMerchant() -> String {
+        let merchantTotals = transactionStore.getMerchantTotals()
+        if let topMerchant = merchantTotals.max(by: { $0.amount < $1.amount }) {
+            return topMerchant.merchantName
         }
+        return "your favorite merchant"
     }
 }
 
-// New component for merchant total items
+// Merchant total item component
 struct MerchantTotalItem: View {
     let merchantName: String
     let icon: String
