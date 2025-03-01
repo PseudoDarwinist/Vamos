@@ -86,121 +86,124 @@ class GeminiService {
     
     // Method to extract information from receipt image
     func extractReceiptInfo(imageData: Data) -> AnyPublisher<[String: Any], Error> {
-        print("🟢 GeminiService: Starting extractReceiptInfo")
-        
-        // Check if image data is valid
-        if imageData.isEmpty {
-            print("🔴 GeminiService: Image data is empty")
-            return Fail(error: NSError(domain: "GeminiService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Image data is empty"]))
-                .eraseToAnyPublisher()
-        }
-        
-        // Log image data size
-        let imageSizeKB = Double(imageData.count) / 1024.0
-        print("🟢 GeminiService: Image data size: \(imageSizeKB) KB")
-        
-        // Check if image is too large for API
-        if imageSizeKB > 10240 { // 10MB limit for most APIs
-            print("🔴 GeminiService: Image is too large for API (\(imageSizeKB) KB)")
-            return Fail(error: NSError(domain: "GeminiService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Image is too large for API"]))
-                .eraseToAnyPublisher()
-        }
-        
-        // Convert image data to base64
-        let base64String = imageData.base64EncodedString()
-        
-        // Check if base64 string is valid
-        if base64String.isEmpty {
-            print("🔴 GeminiService: Failed to convert image to base64")
-            return Fail(error: NSError(domain: "GeminiService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to base64"]))
-                .eraseToAnyPublisher()
-        }
-        
-        print("🟢 GeminiService: Successfully converted image to base64 (length: \(base64String.count))")
-        
-        // Use Flash for multimodal capabilities (image processing)
-        // Gemini 2.0 Flash supports images, audio, video, and text inputs
-        let imageModel = Model.flash
-        
-        // Create two separate parts: first for the image, second for the text prompt
-        let imagePart = GeminiPart(
-            inlineData: GeminiInlineData(
-                mimeType: "image/jpeg",
-                data: base64String
-            )
+    print("🤖 GEMINI API: Starting receipt info extraction")
+    
+    // Check if image data is valid
+    if imageData.isEmpty {
+        print("🔴 GeminiService: Image data is empty")
+        return Fail(error: NSError(domain: "GeminiService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Image data is empty"]))
+            .eraseToAnyPublisher()
+    }
+    
+    // Log image data size
+    let imageSizeKB = Double(imageData.count) / 1024.0
+    print("🟢 GeminiService: Image data size: \(imageSizeKB) KB")
+    
+    // Check if image is too large for API
+    if imageSizeKB > 10240 { // 10MB limit for most APIs
+        print("🔴 GeminiService: Image is too large for API (\(imageSizeKB) KB)")
+        return Fail(error: NSError(domain: "GeminiService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Image is too large for API"]))
+            .eraseToAnyPublisher()
+    }
+    
+    // Convert image data to base64
+    let base64String = imageData.base64EncodedString()
+    
+    // Check if base64 string is valid
+    if base64String.isEmpty {
+        print("🔴 GeminiService: Failed to convert image to base64")
+        return Fail(error: NSError(domain: "GeminiService", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to convert image to base64"]))
+            .eraseToAnyPublisher()
+    }
+    
+    print("🟢 GeminiService: Successfully converted image to base64 (length: \(base64String.count))")
+    
+    // Use Flash for multimodal capabilities (image processing)
+    // Gemini 2.0 Flash supports images, audio, video, and text inputs
+    let imageModel = Model.flash
+    
+    // Create two separate parts: first for the image, second for the text prompt
+    let imagePart = GeminiPart(
+        inlineData: GeminiInlineData(
+            mimeType: "image/jpeg",
+            data: base64String
         )
+    )
+    
+    let textPart = GeminiPart(
+        text: """
+        Extract the following information from this receipt image:
+        - date (in format YYYY-MM-DD)
+        - merchant_name (the store or business name)
+        - total_amount (just the number, without currency symbol)
+        - category (e.g., Groceries, Dining, Transportation)
         
-        let textPart = GeminiPart(
-            text: """
-            Extract the following information from this receipt image:
-            - date (in format YYYY-MM-DD)
-            - merchant_name (the store or business name)
-            - total_amount (just the number, without currency symbol)
-            - category (e.g., Groceries, Dining, Transportation)
+        Format the response as a JSON object with these exact keys.
+        If you cannot find a specific piece of information, use null for that field.
+        """
+    )
+    
+    // Add both parts to the content
+    let content = GeminiContent(parts: [imagePart, textPart])
+    let requestBody = GeminiRequest(contents: [content])
+    
+    return sendRequest(model: imageModel, body: requestBody)
+        .map { response -> [String: Any] in
+            guard let text = response.candidates.first?.content.parts.first?.text,
+                  let data = text.data(using: .utf8) else {
+                print("🔴 GeminiService: No text in response or failed to convert to data")
+                return [:]
+            }
             
-            Format the response as a JSON object with these exact keys.
-            If you cannot find a specific piece of information, use null for that field.
-            """
-        )
-        
-        // Add both parts to the content
-        let content = GeminiContent(parts: [imagePart, textPart])
-        let requestBody = GeminiRequest(contents: [content])
-        
-        return sendRequest(model: imageModel, body: requestBody)
-            .map { response -> [String: Any] in
-                guard let text = response.candidates.first?.content.parts.first?.text,
-                      let data = text.data(using: .utf8) else {
-                    print("🔴 GeminiService: No text in response or failed to convert to data")
-                    return [:]
-                }
-                
-                print("🟢 GeminiService: Received text response: \(text)")
-                
-                do {
-                    if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                        print("🟢 GeminiService: Successfully parsed JSON response")
-                        return json
-                    } else {
-                        print("🔴 GeminiService: Response is not a valid JSON object")
-                        
-                        // Try to extract JSON from text if it's embedded in other text
-                        if let jsonStartIndex = text.firstIndex(of: "{"),
-                           let jsonEndIndex = text.lastIndex(of: "}") {
-                            let jsonSubstring = text[jsonStartIndex...jsonEndIndex]
-                            if let jsonData = String(jsonSubstring).data(using: .utf8),
-                               let extractedJson = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any] {
-                                print("🟢 GeminiService: Successfully extracted embedded JSON")
-                                return extractedJson
-                            }
-                        }
-                        
-                        return [:]
-                    }
-                } catch {
-                    print("🔴 GeminiService: Error parsing JSON: \(error)")
+            print("🟢 GeminiService: Received text response: \(text)")
+            
+            do {
+                if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                    print("🟢 GeminiService: Successfully parsed JSON response")
+                    print("🟢 GeminiService: Extracted data: \(json)")
+                    return json
+                } else {
+                    print("🔴 GeminiService: Response is not a valid JSON object")
                     
-                    // Handle the case where JSON is wrapped in backticks
-                    if text.contains("```json") {
-                        // Extract JSON from code block format
-                        let cleanedText = text.replacingOccurrences(of: "```json", with: "")
-                            .replacingOccurrences(of: "```", with: "")
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        
-                        print("🟢 GeminiService: Attempting to parse JSON from code block: \(cleanedText)")
-                        
-                        if let jsonData = cleanedText.data(using: .utf8),
+                    // Try to extract JSON from text if it's embedded in other text
+                    if let jsonStartIndex = text.firstIndex(of: "{"),
+                       let jsonEndIndex = text.lastIndex(of: "}") {
+                        let jsonSubstring = text[jsonStartIndex...jsonEndIndex]
+                        if let jsonData = String(jsonSubstring).data(using: .utf8),
                            let extractedJson = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any] {
-                            print("🟢 GeminiService: Successfully extracted JSON from code block")
+                            print("🟢 GeminiService: Successfully extracted embedded JSON")
+                            print("🟢 GeminiService: Embedded JSON data: \(extractedJson)")
                             return extractedJson
                         }
                     }
                     
                     return [:]
                 }
+            } catch {
+                print("🔴 GeminiService: Error parsing JSON: \(error)")
+                
+                // Handle the case where JSON is wrapped in backticks
+                if text.contains("```json") {
+                    // Extract JSON from code block format
+                    let cleanedText = text.replacingOccurrences(of: "```json", with: "")
+                        .replacingOccurrences(of: "```", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    print("🟢 GeminiService: Attempting to parse JSON from code block: \(cleanedText)")
+                    
+                    if let jsonData = cleanedText.data(using: .utf8),
+                       let extractedJson = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any] {
+                        print("🟢 GeminiService: Successfully extracted JSON from code block")
+                        print("🟢 GeminiService: Code block JSON data: \(extractedJson)")
+                        return extractedJson
+                    }
+                }
+                
+                return [:]
             }
-            .eraseToAnyPublisher()
-    }
+        }
+        .eraseToAnyPublisher()
+}
     
     // Method to generate narrative summary
     func generateNarrativeSummary(transactions: [Transaction]) -> AnyPublisher<String, Error> {

@@ -23,11 +23,19 @@ class TransactionStore: ObservableObject {
     }
     
     // Add a new transaction to the store
-    func addTransaction(_ transaction: Transaction) {
+        func addTransaction(_ transaction: Transaction) {
+        print("🔄 ADDING TRANSACTION:")
+        print("  - Merchant: \(transaction.merchant)")
+        print("  - Initial Category: \(transaction.category.name)")
+        
         // Auto-categorize the transaction based on merchant name if not already categorized
         var newTransaction = transaction
         if transaction.category.name == "Miscellaneous" {
             let category = categoryForMerchant(transaction.merchant)
+            print("  - Miscellaneous detected, recategorizing")
+            print("  - Merchant: \(transaction.merchant)")
+            print("  - New Category: \(category.name)")
+            
             newTransaction = Transaction(
                 id: transaction.id,
                 amount: transaction.amount,
@@ -38,6 +46,8 @@ class TransactionStore: ObservableObject {
                 notes: transaction.notes,
                 recurringFlag: transaction.recurringFlag
             )
+        } else {
+            print("  - Keeping original category: \(transaction.category.name)")
         }
         
         transactions.append(newTransaction)
@@ -45,14 +55,14 @@ class TransactionStore: ObservableObject {
         saveTransactions()
         // Notify observers
         objectWillChange.send()
+        
+        print("🔄 TRANSACTION ADDED with final category: \(newTransaction.category.name)")
     }
     
-    // Delete a transaction
-    func deleteTransaction(withId id: UUID) {
-        transactions.removeAll(where: { $0.id == id })
-        // Save changes to persistence
-        saveTransactions()
-        // Notify observers
+    // Clear all transactions
+    func clearAllTransactions() {
+        transactions.removeAll()
+        PersistenceManager.shared.clearAllTransactions()
         objectWillChange.send()
     }
     
@@ -191,12 +201,18 @@ class TransactionStore: ObservableObject {
     func categoryForMerchant(_ merchantName: String) -> Category {
         let merchant = merchantName.lowercased()
         
-        if merchant.contains("swiggy") || merchant.contains("zomato") || 
-           merchant.contains("food") || merchant.contains("restaurant") || 
+        // Check for Amazon specifically before other shopping platforms
+        if merchant.contains("amazon") {
+            return Category.sample(name: "Shopping")
+        }
+        // Food & Dining - explicitly check for food delivery apps first
+        else if merchant.contains("swiggy") || merchant.contains("zomato") {
+            return Category.sample(name: "Food & Dining")
+        } else if merchant.contains("food") || merchant.contains("restaurant") || 
            merchant.contains("cafe") || merchant.contains("kfc") || 
            merchant.contains("nazeer") || merchant.contains("starbucks") {
             return Category.sample(name: "Food & Dining")
-        } else if merchant.contains("amazon") || merchant.contains("flipkart") || 
+        } else if merchant.contains("flipkart") || 
                   merchant.contains("myntra") || merchant.contains("ajio") || 
                   merchant.contains("shopping") {
             return Category.sample(name: "Shopping")
@@ -284,49 +300,32 @@ class TransactionStore: ObservableObject {
     private func getMerchantGroup(for merchant: String) -> String {
         let merchantLower = merchant.lowercased()
         
-        // Food delivery platforms and restaurants
+        // Food delivery platforms - check these first
         if merchantLower.contains("swiggy") {
             return "Swiggy"
         } else if merchantLower.contains("zomato") {
             return "Zomato"
-        } 
-        // Check if it's a food item ordered through a delivery platform
-        else if merchantLower.contains("kfc") || 
-                merchantLower.contains("nazeer") || 
-                merchantLower.contains("starbucks") || 
-                merchantLower.contains("mcdonald") || 
-                merchantLower.contains("burger king") || 
-                merchantLower.contains("domino") {
-            // Check if it was ordered through a food delivery platform
-            if merchantLower.contains("swiggy") {
-                return "Swiggy"
-            } else if merchantLower.contains("zomato") {
-                return "Zomato"
-            } else {
-                // If not through a platform, use the restaurant name
-                if merchantLower.contains("kfc") {
-                    return "KFC"
-                } else if merchantLower.contains("nazeer") {
-                    return "Nazeer"
-                } else if merchantLower.contains("starbucks") {
-                    return "Starbucks"
-                } else if merchantLower.contains("mcdonald") {
-                    return "McDonald's"
-                } else if merchantLower.contains("burger king") {
-                    return "Burger King"
-                } else if merchantLower.contains("domino") {
-                    return "Domino's Pizza"
-                } else {
-                    // Default case for other restaurants
-                    return "Restaurant"
-                }
-            }
+        } else if merchantLower.contains("amazon") {
+            return "Amazon"
+        }
+        
+        // Restaurant checks remain the same but moved lower in priority
+        else if merchantLower.contains("kfc") {
+            return "KFC"
+        } else if merchantLower.contains("nazeer") {
+            return "Nazeer"
+        } else if merchantLower.contains("starbucks") {
+            return "Starbucks"
+        } else if merchantLower.contains("mcdonald") {
+            return "McDonald's"
+        } else if merchantLower.contains("burger king") {
+            return "Burger King"
+        } else if merchantLower.contains("domino") {
+            return "Domino's Pizza"
         }
         
         // E-commerce platforms
-        else if merchantLower.contains("amazon") {
-            return "Amazon"
-        } else if merchantLower.contains("flipkart") {
+        else if merchantLower.contains("flipkart") {
             return "Flipkart"
         } 
         

@@ -27,39 +27,50 @@ struct Category: Identifiable, Codable {
 
 // MARK: - Sample Data
 extension Category {
-    static func sample(name: String) -> Category {
-        switch name {
-        case "Food & Drink":
+        static func sample(name: String) -> Category {
+        // Normalize the category name to improve matching
+        let normalizedName = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        switch normalizedName {
+        case "food & dining", "food & drink", "food", "dining", "restaurant", "restaurants":
             return Category(
-                name: "Food & Drink",
+                name: "Food & Dining",
                 icon: "cup.and.saucer.fill",
                 colorHex: "#3CB371" // Medium Sea Green
             )
-        case "Transportation":
+        case "transportation", "transport", "travel":
             return Category(
                 name: "Transportation",
                 icon: "car.fill",
                 colorHex: "#66CDAA" // Medium Aquamarine
             )
-        case "Groceries":
+        case "groceries", "grocery", "supermarket":
             return Category(
                 name: "Groceries",
                 icon: "cart.fill",
                 colorHex: "#2E8B57" // Sea Green
             )
-        case "Entertainment":
+        case "entertainment", "movies", "music":
             return Category(
                 name: "Entertainment",
                 icon: "tv.fill",
                 colorHex: "#5F9EA0" // Cadet Blue
             )
-        case "Health":
+        case "health", "healthcare", "medical", "fitness":
             return Category(
                 name: "Health",
                 icon: "heart.fill",
                 colorHex: "#FF6B6B" // Light Red
             )
+        case "shopping", "retail", "store", "amazon", "online shopping":
+            return Category(
+                name: "Shopping",
+                icon: "bag.fill",
+                colorHex: "#4682B4" // Steel Blue
+            )
         default:
+            // Print debug info for unmatched categories
+            print("⚠️ No matching category found for: '\(name)'. Using Miscellaneous.")
             return Category(
                 name: "Miscellaneous",
                 icon: "square.grid.2x2.fill",

@@ -19,21 +19,9 @@ struct MerchantTransactionsView: View {
             
             // For food delivery platforms
             if merchantName == "Swiggy" {
-                return transactionMerchant.contains("swiggy") ||
-                       (transactionMerchant.contains("kfc") && transactionMerchant.contains("swiggy")) ||
-                       (transactionMerchant.contains("nazeer") && transactionMerchant.contains("swiggy")) ||
-                       (transactionMerchant.contains("starbucks") && transactionMerchant.contains("swiggy")) ||
-                       (transactionMerchant.contains("mcdonald") && transactionMerchant.contains("swiggy")) ||
-                       (transactionMerchant.contains("burger king") && transactionMerchant.contains("swiggy")) ||
-                       (transactionMerchant.contains("domino") && transactionMerchant.contains("swiggy"))
+                return transactionMerchant.contains("swiggy")
             } else if merchantName == "Zomato" {
-                return transactionMerchant.contains("zomato") ||
-                       (transactionMerchant.contains("kfc") && transactionMerchant.contains("zomato")) ||
-                       (transactionMerchant.contains("nazeer") && transactionMerchant.contains("zomato")) ||
-                       (transactionMerchant.contains("starbucks") && transactionMerchant.contains("zomato")) ||
-                       (transactionMerchant.contains("mcdonald") && transactionMerchant.contains("zomato")) ||
-                       (transactionMerchant.contains("burger king") && transactionMerchant.contains("zomato")) ||
-                       (transactionMerchant.contains("domino") && transactionMerchant.contains("zomato"))
+                return transactionMerchant.contains("zomato")
             } else if merchantName == "Amazon" {
                 return transactionMerchant.contains("amazon")
             } else if merchantName == "Uber" {
@@ -299,4 +287,4 @@ struct MerchantTransactionsView_Previews: PreviewProvider {
             merchantName: "Swiggy"
         )
     }
-} 
+}

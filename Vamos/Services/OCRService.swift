@@ -79,10 +79,17 @@ class OCRService {
     }
     
     // Process receipt and return Transaction object
-
         func processReceipt(image: UIImage) -> AnyPublisher<Transaction, Error> {
         return extractStructuredData(from: image)
             .map { data -> Transaction in
+                // Debug logging for the extracted data
+                print("📊 RECEIPT DATA EXTRACTED:")
+                print("  - Raw data: \(data)")
+                print("  - Merchant: \(data["merchant_name"] as? String ?? "nil")")
+                print("  - Amount: \(data["total_amount"] as? String ?? "nil")")
+                print("  - Date: \(data["date"] as? String ?? "nil")")
+                print("  - Category: \(data["category"] as? String ?? "nil")")
+                
                 // Parse extracted data
                 let amount: Decimal
                 if let amountString = data["total_amount"] as? String {
@@ -100,6 +107,10 @@ class OCRService {
                 
                 let merchant = data["merchant_name"] as? String ?? "Unknown Merchant"
                 let categoryName = data["category"] as? String ?? "Miscellaneous"
+                
+                print("📊 CREATING TRANSACTION:")
+                print("  - Merchant: \(merchant)")
+                print("  - Category: \(categoryName)")
                 
                 // Create Transaction object
                 return Transaction(

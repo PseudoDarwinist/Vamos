@@ -18,8 +18,7 @@ struct VamosApp: App {
                         Text("History View")
                             .font(.largeTitle)
                     case .settings:
-                        Text("Settings View")
-                            .font(.largeTitle)
+                        SettingsView() // Make sure this is using your SettingsView
                     }
                 }
                 
