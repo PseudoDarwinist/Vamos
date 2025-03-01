@@ -233,4 +233,63 @@ class GeminiService {
     private func toggleModel() {
         currentModel = (currentModel == .flash) ? .flashLite : .flash
     }
+
+
+
+    // Method to extract information from PDF document
+    func extractPDFInfo(pdfData: Data) -> AnyPublisher<[String: Any], Error> {
+        // Convert PDF data to base64
+        let base64String = pdfData.base64EncodedString()
+        
+        // Create request body with PDF-specific prompt
+        let part = GeminiPart(
+            text: """
+            Extract the following information from this invoice/receipt PDF:
+            1. Date of purchase
+            2. Merchant/vendor name
+            3. Total amount paid
+            4. Tax amount (if available)
+            5. Item category (e.g., Fuel, Food, Electronics)
+            6. Individual items with prices (if available)
+            7. Payment method (if available)
+            
+            For fuel/petrol receipts, also extract:
+            - Fuel type
+            - Quantity of fuel
+            - Price per unit
+            - Vehicle information (if available)
+            
+            Format the response as a clean, structured JSON object.
+            If information is not found, use null for that field.
+            """,
+            inlineData: GeminiInlineData(
+                mimeType: "application/pdf",
+                data: base64String
+            )
+        )
+        
+        let content = GeminiContent(parts: [part])
+        let requestBody = GeminiRequest(contents: [content])
+        
+        return sendRequest(model: currentModel, body: requestBody)
+            .map { response -> [String: Any] in
+                guard let text = response.candidates.first?.content.parts.first?.text,
+                    let data = text.data(using: .utf8) else {
+                    return [:]
+                }
+                
+                do {
+                    if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                        return json
+                    } else {
+                        return [:]
+                    }
+                } catch {
+                    print("Error parsing JSON: \(error)")
+                    return [:]
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+    
 }

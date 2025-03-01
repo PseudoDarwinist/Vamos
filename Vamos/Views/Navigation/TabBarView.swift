@@ -40,8 +40,7 @@ struct TabBarView: View {
             .offset(y: -20)
         }
         .sheet(isPresented: $showScanner) {
-            Text("Scanner View Placeholder")
-                .padding()
+            ScannerView()
         }
     }
     
