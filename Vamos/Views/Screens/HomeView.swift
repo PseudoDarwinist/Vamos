@@ -146,6 +146,19 @@ struct HomeView: View {
     private func loadData() {
         isLoading = true
         
+        // Calculate total amount from all transactions
+        let totalAmount = transactionStore.transactions.reduce(Decimal(0)) { $0 + $1.amount }
+        
+        // Update month summary with actual data
+        monthSummary = MonthSummary(
+            id: monthSummary.id,
+            month: monthSummary.month,
+            totalSpent: totalAmount,
+            transactionCount: transactionStore.transactions.count,
+            categorySummaries: [], // This could be populated if needed
+            narrativeSummary: monthSummary.narrativeSummary
+        )
+        
         // If there are no transactions, set a default narrative and stop loading
         if transactionStore.transactions.isEmpty {
             isLoading = false

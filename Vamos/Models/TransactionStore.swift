@@ -7,6 +7,21 @@ class TransactionStore: ObservableObject {
     
     @Published var transactions: [Transaction] = []
     
+    private init() {
+        // Load saved transactions when the store is initialized
+        loadSavedTransactions()
+    }
+    
+    // Load transactions from persistence
+    private func loadSavedTransactions() {
+        self.transactions = PersistenceManager.shared.loadTransactions()
+    }
+    
+    // Save current transactions to persistence
+    private func saveTransactions() {
+        PersistenceManager.shared.saveTransactions(transactions)
+    }
+    
     // Add a new transaction to the store
     func addTransaction(_ transaction: Transaction) {
         // Auto-categorize the transaction based on merchant name if not already categorized
@@ -26,6 +41,17 @@ class TransactionStore: ObservableObject {
         }
         
         transactions.append(newTransaction)
+        // Save changes to persistence
+        saveTransactions()
+        // Notify observers
+        objectWillChange.send()
+    }
+    
+    // Delete a transaction
+    func deleteTransaction(withId id: UUID) {
+        transactions.removeAll(where: { $0.id == id })
+        // Save changes to persistence
+        saveTransactions()
         // Notify observers
         objectWillChange.send()
     }
@@ -47,13 +73,15 @@ class TransactionStore: ObservableObject {
             let total = categoryTransactions.reduce(0) { $0 + $1.amount }
             
             // Get the category from the first transaction
-            let category = categoryTransactions.first!.category
-            
-            categoryTotals.append(CategoryTotal(
-                category: category,
-                amount: total,
-                count: categoryTransactions.count
-            ))
+            if let firstTransaction = categoryTransactions.first {
+                let category = firstTransaction.category
+                
+                categoryTotals.append(CategoryTotal(
+                    category: category,
+                    amount: total,
+                    count: categoryTransactions.count
+                ))
+            }
         }
         
         // Sort by amount (descending)
