@@ -555,4 +555,43 @@ class GeminiService {
             }
             .eraseToAnyPublisher()
     }
+
+    // a method to process PDF and create transaction
+    func processPDFDocument(pdfData: Data) -> AnyPublisher<Transaction, Error> {
+        print("🟢 GeminiService: Starting processPDFDocument")
+        
+        return extractPDFInfo(pdfData: pdfData)
+            .map { data -> Transaction in
+                // Debug logging
+                print("📊 PDF DATA EXTRACTED:")
+                print("  - Raw data: \(data)")
+                
+                // Parse extracted data
+                let amount: Decimal
+                if let amountString = data["total_amount"] as? String {
+                    amount = Decimal(string: amountString.replacingOccurrences(of: "₹", with: "").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0.0
+                } else if let amountNumber = data["total_amount"] as? NSNumber {
+                    amount = Decimal(amountNumber.doubleValue)
+                } else {
+                    amount = 0.0
+                }
+                
+                let dateString = data["date"] as? String ?? ""
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+                let date = dateFormatter.date(from: dateString) ?? Date()
+                
+                let merchant = data["merchant_name"] as? String ?? "Unknown Merchant"
+                let categoryName = data["category"] as? String ?? "Miscellaneous"
+                
+                return Transaction(
+                    amount: amount,
+                    date: date,
+                    merchant: merchant,
+                    category: Category.sample(name: categoryName),
+                    sourceType: .digital
+                )
+            }
+            .eraseToAnyPublisher()
+    }
 }
