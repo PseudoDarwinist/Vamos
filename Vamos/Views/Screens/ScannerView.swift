@@ -16,6 +16,9 @@ struct ScannerView: View {
     // Add OCR service for processing
     private let ocrService = OCRService()
     
+    // UIViewController to use for presenting sheets
+    @State private var hostingController: UIViewController?
+    
     enum ScannerTab {
         case camera
         case document
@@ -170,38 +173,63 @@ struct ScannerView: View {
                 }
             }
         }
+        .background(ViewControllerRepresentable { viewController in
+            // Store the view controller for later use
+            self.hostingController = viewController
+        })
     }
     
-        private func processReceipt() {
-        guard let image = capturedImage else { return }
-        
-        isProcessing = true
-        
-        // Process receipt using OCR service
-        ocrService.processReceipt(image: image)
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { completion in
-                isProcessing = false
-                switch completion {
-                case .finished:
-                    print("Receipt processing completed successfully")
-                    // Here we successfully processed the receipt and can dismiss the scanner
-                    presentationMode.wrappedValue.dismiss()
-                case .failure(let error):
-                    print("Receipt processing failed: \(error.localizedDescription)")
-                    // You might want to show an error message to the user here
-                }
-            }, receiveValue: { transaction in
-                self.transactionResult = transaction
-                print("Received transaction: \(transaction.merchant) - \(transaction.amount)")
-                
-                // Add the transaction to our store
-                TransactionStore.shared.addTransaction(transaction)
-            })
-            .store(in: &cancellables)
-    }
+    // In ScannerView.swift
+
+// In ScannerView.swift, update processReceipt method
+private func processReceipt() {
+    guard let image = capturedImage else { return }
     
-    // Store cancellables for Combine subscriptions
+    isProcessing = true
+    
+    // Process receipt using OCR service
+    ocrService.processReceipt(image: image)
+        .receive(on: DispatchQueue.main)
+        .sink(receiveCompletion: { completion in
+            isProcessing = false
+            switch completion {
+            case .finished:
+                print("✅ Data extraction completed")
+                // Just dismiss this view - the transaction is already added to the store
+                self.presentationMode.wrappedValue.dismiss()
+            case .failure(let error):
+                print("❌ Receipt processing failed: \(error.localizedDescription)")
+            }
+        }, receiveValue: { transaction in
+            // Add transaction to store and print debug info
+            print("📊 RECEIVED TRANSACTION: \(transaction.merchant) - \(transaction.amount)")
+            TransactionStore.shared.addTransaction(transaction)
+        })
+        .store(in: &cancellables)
+}
+
+// New helper method to show the transaction edit screen
+private func showTransactionEdit(for image: UIImage) {
+    // Extract the basic data needed for the edit view
+    let merchantName = "KFC"  // Default or extract from image
+    let amount = Decimal(1187.00)  // Default or extract from image
+    let category = Category.sample(name: "Food & Dining")
+    
+    // Create and present the edit view directly in SwiftUI
+    let editView = TransactionEditView(
+        merchantName: merchantName,
+        amount: amount,
+        date: Date(),
+        category: category
+    )
+    
+    // Create a hosting controller and present it
+    let hostingController = UIHostingController(rootView: editView)
+    UIApplication.shared.windows.first?.rootViewController?.present(hostingController, animated: true)
+    
+    // Dismiss the scanner view
+    self.presentationMode.wrappedValue.dismiss()
+}
     
     private func tabButton(title: String, systemImage: String, tab: ScannerTab) -> some View {
         let isSelected = activeTab == tab
@@ -233,7 +261,22 @@ struct ScannerView: View {
     }
 }
 
-// Camera view using AVFoundation - the rest of your existing code remains unchanged 
+// Helper to get access to the underlying UIViewController
+struct ViewControllerRepresentable: UIViewControllerRepresentable {
+    let onAppear: (UIViewController) -> Void
+    
+    func makeUIViewController(context: Context) -> UIViewController {
+        let vc = UIViewController()
+        vc.view.backgroundColor = .clear
+        return vc
+    }
+    
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        onAppear(uiViewController)
+    }
+}
+
+// Camera view using AVFoundation
 struct CameraView: UIViewControllerRepresentable {
     @Binding var capturedImage: UIImage?
     @Binding var isShowingCapturedImage: Bool

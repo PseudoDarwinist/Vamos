@@ -8,37 +8,19 @@ struct MerchantTransactionsView: View {
     
     // Get transactions for this merchant in this category
     private var merchantTransactions: [Transaction] {
-        // Use the custom filtering logic to handle special cases like food delivery
-        return transactionStore.transactions.filter { transaction in
-            // First check if the transaction belongs to the specified category
-            guard transaction.category.name == category.name else {
-                return false
+        // Check if this is an aggregator (Swiggy, Zomato, etc.)
+        if transactionStore.isKnownAggregator(merchantName) {
+            // Filter transactions by category and matching aggregator
+            return transactionStore.transactions.filter { transaction in
+                transaction.category.name == category.name && 
+                transaction.aggregator == merchantName
             }
-            
-            let transactionMerchant = transaction.merchant.lowercased()
-            
-            // For food delivery platforms
-            if merchantName == "Swiggy" {
-                return transactionMerchant.contains("swiggy")
-            } else if merchantName == "Zomato" {
-                return transactionMerchant.contains("zomato")
-            } else if merchantName == "Amazon" {
-                return transactionMerchant.contains("amazon")
-            } else if merchantName == "Uber" {
-                return transactionMerchant.contains("uber") ||
-                       transactionMerchant.contains("ola") ||
-                       transactionMerchant.contains("taxi") ||
-                       transactionMerchant.contains("petrol") ||
-                       transactionMerchant.contains("gas") ||
-                       transactionMerchant.contains("fuel")
-            } else if merchantName == "KFC" {
-                // For specific restaurants, only show direct transactions (not through delivery platforms)
-                return transactionMerchant.contains("kfc") && 
-                       !transactionMerchant.contains("swiggy") && 
-                       !transactionMerchant.contains("zomato")
-            } else {
-                // Direct match for specific merchant
-                return transactionMerchant.contains(merchantName.lowercased())
+        } else {
+            // For regular merchants, filter by category and merchant name
+            return transactionStore.transactions.filter { transaction in
+                transaction.category.name == category.name && 
+                transaction.merchant.lowercased().contains(merchantName.lowercased()) &&
+                transaction.aggregator == nil // Exclude transactions that came through aggregators
             }
         }
     }
@@ -144,53 +126,7 @@ struct MerchantTransactionsView: View {
     }
 }
 
-// Merchant summary card
-struct MerchantSummaryCard: View {
-    let category: Category
-    let merchantName: String
-    let totalSpent: Decimal
-    let transactionCount: Int
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 16) {
-                // Category icon
-                ZStack {
-                    Circle()
-                        .fill(category.color.opacity(0.2))
-                        .frame(width: 56, height: 56)
-                    
-                    Image(systemName: TransactionStore.shared.iconForMerchant(merchantName))
-                        .font(.system(size: 24))
-                        .foregroundColor(category.color)
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Total Spent at \(merchantName)")
-                        .font(.system(.subheadline, design: .rounded))
-                        .foregroundColor(.textSecondary)
-                    
-                    Text("₹\(NSDecimalNumber(decimal: totalSpent).stringValue)")
-                        .font(.system(.title2, design: .rounded))
-                        .fontWeight(.semibold)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text("\(transactionCount) transaction\(transactionCount != 1 ? "s" : "")")
-                        .font(.system(.caption, design: .rounded))
-                        .foregroundColor(.textSecondary)
-                }
-                
-                Spacer()
-            }
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-    }
-}
-
-// Transaction list item
+// Transaction list item with updated description for aggregator transactions
 struct TransactionListItem: View {
     let transaction: Transaction
     
@@ -206,7 +142,13 @@ struct TransactionListItem: View {
         let amountStr = "₹\(numberFormatter.string(from: amount) ?? amount.stringValue)"
         
         let dateStr = formatDate(transaction.date)
-        return "You spent \(amountStr) at \(transaction.merchant) on \(dateStr)"
+        
+        // If this is an aggregator transaction, show the actual merchant
+        if transaction.aggregator != nil {
+            return "You spent \(amountStr) at \(transaction.merchant) on \(dateStr)"
+        } else {
+            return "You spent \(amountStr) at \(transaction.merchant) on \(dateStr)"
+        }
     }
     
     // Format date for natural language
@@ -280,11 +222,48 @@ struct TransactionListItem: View {
     }
 }
 
-struct MerchantTransactionsView_Previews: PreviewProvider {
-    static var previews: some View {
-        MerchantTransactionsView(
-            category: Category.sample(name: "Food & Dining"),
-            merchantName: "Swiggy"
-        )
+// Merchant summary card
+struct MerchantSummaryCard: View {
+    let category: Category
+    let merchantName: String
+    let totalSpent: Decimal
+    let transactionCount: Int
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 16) {
+                // Category icon
+                ZStack {
+                    Circle()
+                        .fill(category.color.opacity(0.2))
+                        .frame(width: 56, height: 56)
+                    
+                    Image(systemName: TransactionStore.shared.iconForMerchant(merchantName))
+                        .font(.system(size: 24))
+                        .foregroundColor(category.color)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Total Spent at \(merchantName)")
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundColor(.textSecondary)
+                    
+                    Text("₹\(NSDecimalNumber(decimal: totalSpent).stringValue)")
+                        .font(.system(.title2, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("\(transactionCount) transaction\(transactionCount != 1 ? "s" : "")")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundColor(.textSecondary)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }

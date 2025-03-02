@@ -23,17 +23,21 @@ class TransactionStore: ObservableObject {
     }
     
     // Add a new transaction to the store
-        func addTransaction(_ transaction: Transaction) {
+    func addTransaction(_ transaction: Transaction) {
         print("🔄 ADDING TRANSACTION:")
         print("  - Merchant: \(transaction.merchant)")
+        print("  - Aggregator: \(transaction.aggregator ?? "None")")
         print("  - Initial Category: \(transaction.category.name)")
         
         // Auto-categorize the transaction based on merchant name if not already categorized
         var newTransaction = transaction
+        
         if transaction.category.name == "Miscellaneous" {
-            let category = categoryForMerchant(transaction.merchant)
+            let merchantName = transaction.aggregator ?? transaction.merchant
+            let category = categoryForMerchant(merchantName)
             print("  - Miscellaneous detected, recategorizing")
             print("  - Merchant: \(transaction.merchant)")
+            print("  - Aggregator: \(transaction.aggregator ?? "None")")
             print("  - New Category: \(category.name)")
             
             newTransaction = Transaction(
@@ -41,6 +45,7 @@ class TransactionStore: ObservableObject {
                 amount: transaction.amount,
                 date: transaction.date,
                 merchant: transaction.merchant,
+                aggregator: transaction.aggregator,
                 category: category,
                 sourceType: transaction.sourceType,
                 notes: transaction.notes,
@@ -99,22 +104,24 @@ class TransactionStore: ObservableObject {
     }
     
     // Group transactions by merchant within a category
+    // This is a key function to support the new hierarchy
     func groupByMerchantInCategory(categoryName: String) -> [(merchant: String, total: Decimal, count: Int)] {
         // First filter transactions by category
         let categoryTransactions = transactions.filter { $0.category.name == categoryName }
         
-        // Group transactions by merchant
+        // Group transactions by aggregator (or merchant if no aggregator)
         var merchantGroups: [String: [Transaction]] = [:]
         
         for transaction in categoryTransactions {
-            let merchantName = getMerchantGroup(for: transaction.merchant)
-            if merchantGroups[merchantName] == nil {
-                merchantGroups[merchantName] = []
+            // Use aggregator as the grouping key if available, otherwise use merchant
+            let groupKey = transaction.aggregator ?? transaction.merchant
+            if merchantGroups[groupKey] == nil {
+                merchantGroups[groupKey] = []
             }
-            merchantGroups[merchantName]?.append(transaction)
+            merchantGroups[groupKey]?.append(transaction)
         }
         
-        // Calculate totals for each merchant
+        // Calculate totals for each merchant group
         return merchantGroups.map { (merchant, transactions) in
             let total = transactions.reduce(0) { $0 + $1.amount }
             return (merchant: merchant, total: total, count: transactions.count)
@@ -201,14 +208,16 @@ class TransactionStore: ObservableObject {
     func categoryForMerchant(_ merchantName: String) -> Category {
         let merchant = merchantName.lowercased()
         
-        // Check for Amazon specifically before other shopping platforms
-        if merchant.contains("amazon") {
+        // Check for food delivery aggregators first
+        if merchant.contains("swiggy") || merchant.contains("zomato") {
+            return Category.sample(name: "Food & Dining")
+        }
+        // Then check for Amazon specifically before other shopping platforms
+        else if merchant.contains("amazon") {
             return Category.sample(name: "Shopping")
         }
-        // Food & Dining - explicitly check for food delivery apps first
-        else if merchant.contains("swiggy") || merchant.contains("zomato") {
-            return Category.sample(name: "Food & Dining")
-        } else if merchant.contains("food") || merchant.contains("restaurant") || 
+        // Other Food & Dining merchants
+        else if merchant.contains("food") || merchant.contains("restaurant") || 
            merchant.contains("cafe") || merchant.contains("kfc") || 
            merchant.contains("nazeer") || merchant.contains("starbucks") {
             return Category.sample(name: "Food & Dining")
@@ -263,6 +272,7 @@ class TransactionStore: ObservableObject {
     }
     
     // Method to get transactions for a specific merchant in a specific category
+    // This is updated to handle the aggregator field
     func transactionsForMerchantInCategory(merchant: String, categoryName: String) -> [Transaction] {
         return transactions.filter { transaction in
             // First check if the transaction belongs to the specified category
@@ -270,9 +280,22 @@ class TransactionStore: ObservableObject {
                 return false
             }
             
-            // Then check if the transaction belongs to the specified merchant group
-            return getMerchantGroup(for: transaction.merchant) == merchant
+            // For aggregators like Swiggy, check if this transaction has that aggregator
+            if isKnownAggregator(merchant) {
+                return transaction.aggregator == merchant
+            }
+            
+            // For regular merchants, check if this transaction is not from an aggregator
+            // and the merchant name matches
+            return transaction.aggregator == nil && 
+                  transaction.merchant.lowercased().contains(merchant.lowercased())
         }
+    }
+    
+    // Helper function to check if a merchant is a known aggregator
+    func isKnownAggregator(_ merchant: String) -> Bool {
+        let knownAggregators = ["Swiggy", "Zomato", "Amazon", "Flipkart", "Uber", "Ola"]
+        return knownAggregators.contains(merchant)
     }
     
     // Get total spending for a specific category
@@ -294,78 +317,6 @@ class TransactionStore: ObservableObject {
         }
         
         return uniqueCategories.sorted(by: { $0.name < $1.name })
-    }
-    
-    // Helper method to get merchant group
-    private func getMerchantGroup(for merchant: String) -> String {
-        let merchantLower = merchant.lowercased()
-        
-        // Food delivery platforms - check these first
-        if merchantLower.contains("swiggy") {
-            return "Swiggy"
-        } else if merchantLower.contains("zomato") {
-            return "Zomato"
-        } else if merchantLower.contains("amazon") {
-            return "Amazon"
-        }
-        
-        // Restaurant checks remain the same but moved lower in priority
-        else if merchantLower.contains("kfc") {
-            return "KFC"
-        } else if merchantLower.contains("nazeer") {
-            return "Nazeer"
-        } else if merchantLower.contains("starbucks") {
-            return "Starbucks"
-        } else if merchantLower.contains("mcdonald") {
-            return "McDonald's"
-        } else if merchantLower.contains("burger king") {
-            return "Burger King"
-        } else if merchantLower.contains("domino") {
-            return "Domino's Pizza"
-        }
-        
-        // E-commerce platforms
-        else if merchantLower.contains("flipkart") {
-            return "Flipkart"
-        } 
-        
-        // Transportation
-        else if merchantLower.contains("uber") {
-            return "Uber"
-        } else if merchantLower.contains("ola") {
-            return "Ola"
-        } else if merchantLower.contains("taxi") {
-            return "Taxi"
-        } else if merchantLower.contains("petrol") || merchantLower.contains("gas") || merchantLower.contains("fuel") {
-            return "Fuel"
-        } 
-        
-        // Entertainment
-        else if merchantLower.contains("netflix") {
-            return "Netflix"
-        } else if merchantLower.contains("prime") {
-            return "Amazon Prime"
-        } else if merchantLower.contains("hotstar") {
-            return "Hotstar"
-        } 
-        
-        // Other categories
-        else if merchantLower.contains("grocery") || merchantLower.contains("market") {
-            return "Grocery"
-        } else if merchantLower.contains("pharmacy") || merchantLower.contains("medical") {
-            return "Pharmacy"
-        } else if merchantLower.contains("gym") || merchantLower.contains("fitness") {
-            return "Fitness"
-        } else if merchantLower.contains("salon") || merchantLower.contains("spa") {
-            return "Salon & Spa"
-        } else if merchantLower.contains("education") || merchantLower.contains("school") || merchantLower.contains("college") {
-            return "Education"
-        } else if merchantLower.contains("bill") || merchantLower.contains("utility") {
-            return "Utilities"
-        } else {
-            // If no specific group, return the original merchant name
-            return merchant
-        }
     }
 }
 

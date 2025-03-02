@@ -12,6 +12,7 @@ struct Transaction: Identifiable, Codable {
     let amount: Decimal
     let date: Date
     let merchant: String
+    let aggregator: String? // New field to store the aggregator (Swiggy, Zomato, etc.)
     let category: Category
     let sourceType: SourceType
     let notes: String?
@@ -21,6 +22,7 @@ struct Transaction: Identifiable, Codable {
          amount: Decimal, 
          date: Date, 
          merchant: String, 
+         aggregator: String? = nil, // Added aggregator parameter with default nil
          category: Category, 
          sourceType: SourceType, 
          notes: String? = nil, 
@@ -29,10 +31,24 @@ struct Transaction: Identifiable, Codable {
         self.amount = amount
         self.date = date
         self.merchant = merchant
+        self.aggregator = aggregator
         self.category = category
         self.sourceType = sourceType
         self.notes = notes
         self.recurringFlag = recurringFlag
+    }
+    
+    // Helper method to get the display merchant
+    func displayMerchant() -> String {
+        // If there's an aggregator, we should show the actual merchant
+        // Otherwise, just show the merchant as normal
+        return merchant
+    }
+    
+    // Helper method to get the effective "parent" for grouping
+    // This will be the aggregator if available, or merchant if not
+    func groupingMerchant() -> String {
+        return aggregator ?? merchant
     }
 }
 
@@ -77,6 +93,23 @@ extension Transaction {
                 category: .sample(name: "Health"),
                 sourceType: .digital,
                 recurringFlag: true
+            ),
+            // Add sample transactions with aggregators
+            Transaction(
+                amount: 32.50,
+                date: Date().addingTimeInterval(-86400 * 2), // 2 days ago
+                merchant: "KFC",
+                aggregator: "Swiggy",
+                category: .sample(name: "Food & Dining"),
+                sourceType: .digital
+            ),
+            Transaction(
+                amount: 28.75,
+                date: Date().addingTimeInterval(-86400 * 4), // 4 days ago
+                merchant: "Domino's Pizza",
+                aggregator: "Zomato",
+                category: .sample(name: "Food & Dining"),
+                sourceType: .digital
             )
         ]
     }

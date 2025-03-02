@@ -182,9 +182,3 @@ struct MerchantListItem: View {
         }
     }
 }
-
-struct CategoryDetailView_Previews: PreviewProvider {
-    static var previews: some View {
-        CategoryDetailView(category: Category.sample(name: "Food & Dining"))
-    }
-} 
