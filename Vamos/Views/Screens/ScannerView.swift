@@ -181,7 +181,6 @@ struct ScannerView: View {
     
     // In ScannerView.swift
 
-// In ScannerView.swift, update processReceipt method
 private func processReceipt() {
     guard let image = capturedImage else { return }
     
