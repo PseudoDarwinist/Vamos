@@ -3,7 +3,7 @@ import SwiftUI
 enum Tab {
     case home
     case categories
-    case history
+    case cards // Renamed from history
     case settings
 }
 
@@ -22,7 +22,8 @@ struct TabBarView: View {
                 Spacer()
                     .frame(width: 80)
                 
-                tabButton(title: "", icon: "chart.bar", tab: .history)
+                // Replace the chart.bar icon with creditcard.fill
+                tabButton(title: "", icon: "creditcard.fill", tab: .cards) // Updated
                 
                 tabButton(title: "", icon: "gearshape", tab: .settings)
             }

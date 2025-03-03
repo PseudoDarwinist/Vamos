@@ -4,7 +4,7 @@ import SwiftUI
 struct VamosApp: App {
     @State private var selectedTab: Tab = .home
     
-    var body: some Scene {
+        var body: some Scene {
         WindowGroup {
             ZStack {
                 // Content based on selected tab
@@ -14,11 +14,10 @@ struct VamosApp: App {
                         HomeView()
                     case .categories:
                         CategoriesView()
-                    case .history:
-                        Text("History View")
-                            .font(.largeTitle)
+                    case .cards: // Updated from .history
+                        CardsView() // Our new view
                     case .settings:
-                        SettingsView() // Make sure this is using your SettingsView
+                        SettingsView()
                     }
                 }
                 
