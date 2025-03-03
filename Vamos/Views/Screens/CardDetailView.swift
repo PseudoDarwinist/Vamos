@@ -9,6 +9,8 @@ struct CardDetailView: View {
     @State private var showingScanStatement = false
     @State private var showingManualEntry = false
     @State private var showingEditCard = false
+    @State private var showingDeleteConfirmation = false
+    @State private var entryToDelete: UUID? = nil
     
     // Get entries for this card, sorted by date (newest first)
     private var cardEntries: [CashbackEntry] {
@@ -20,6 +22,35 @@ struct CardDetailView: View {
     private var totalCashback: Decimal {
         cashbackStore.getCashbackForCard(cardId: card.id)
     }
+    
+    var body: some View {
+        CardDetailContent(
+            card: card,
+            cardEntries: cardEntries,
+            totalCashback: totalCashback,
+            showingScanStatement: $showingScanStatement,
+            showingManualEntry: $showingManualEntry,
+            showingEditCard: $showingEditCard,
+            showingDeleteConfirmation: $showingDeleteConfirmation,
+            entryToDelete: $entryToDelete,
+            presentationMode: presentationMode,
+            cashbackStore: cashbackStore
+        )
+    }
+}
+
+// Extracted content view
+private struct CardDetailContent: View {
+    let card: Card
+    let cardEntries: [CashbackEntry]
+    let totalCashback: Decimal
+    @Binding var showingScanStatement: Bool
+    @Binding var showingManualEntry: Bool
+    @Binding var showingEditCard: Bool
+    @Binding var showingDeleteConfirmation: Bool
+    @Binding var entryToDelete: UUID?
+    let presentationMode: Binding<PresentationMode>
+    let cashbackStore: CashbackStore
     
     // Format currency
     private func formatCurrency(_ amount: Decimal) -> String {
@@ -39,185 +70,27 @@ struct CardDetailView: View {
             // Content
             ScrollView {
                 VStack(spacing: 20) {
-                    // Header with back button
-                    HStack {
-                        Button(action: {
-                            presentationMode.wrappedValue.dismiss()
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.primaryGreen)
-                                .padding(8)
-                                .background(Color.secondaryGreen.opacity(0.2))
-                                .clipShape(Circle())
-                        }
-                        
-                        Spacer()
-                        
-                        Text("Card Details")
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundColor(.textPrimary)
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            showingEditCard = true
-                        }) {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.primaryGreen)
-                                .padding(8)
-                                .background(Color.secondaryGreen.opacity(0.2))
-                                .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal)
+                    CardDetailHeader(
+                        presentationMode: presentationMode,
+                        showingEditCard: $showingEditCard
+                    )
                     
-                    // Card visualization
-                    ZStack {
-                        Rectangle()
-                            .fill(Color(hex: card.colorHex))
-                            .frame(height: 160)
-                            .cornerRadius(12)
-                        
-                        VStack(alignment: .leading, spacing: 10) {
-                            // Card nickname
-                            Text(card.nickname)
-                                .font(.system(.title3, design: .rounded))
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                            
-                            Spacer()
-                            
-                            // Issuer logo
-                            ZStack {
-                                Rectangle()
-                                    .fill(Color.white.opacity(0.2))
-                                    .frame(width: 50, height: 35)
-                                    .cornerRadius(5)
-                                
-                                Text(card.issuer)
-                                    .font(.system(.caption, design: .rounded))
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                            }
-                            
-                            Spacer()
-                            
-                            // Card number and expiry
-                            HStack {
-                                Text("•••• •••• •••• \(card.lastFourDigits)")
-                                    .font(.system(.body, design: .rounded))
-                                    .foregroundColor(.white)
-                                
-                                Spacer()
-                                
-                                // Statement day if available
-                                if let statementDay = card.statementDay {
-                                    Text("Statement: \(statementDay.ordinal) of month")
-                                        .font(.system(.caption, design: .rounded))
-                                        .foregroundColor(.white.opacity(0.8))
-                                }
-                            }
-                        }
-                        .padding(20)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal)
+                    CardVisualization(card: card)
                     
-                    // Total cashback summary
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Cashback Earned with this Card")
-                            .font(.system(.subheadline, design: .rounded))
-                            .foregroundColor(.textPrimary)
-                        
-                        Text(formatCurrency(totalCashback))
-                            .font(.system(.title2, design: .rounded))
-                            .fontWeight(.bold)
-                            .foregroundColor(.primaryGreen)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .padding(.horizontal)
+                    CashbackSummary(totalCashback: totalCashback)
                     
-                    // Cashback History
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Cashback History")
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundColor(.textPrimary)
-                            .padding(.horizontal)
-                        
-                        if cardEntries.isEmpty {
-                            // Empty state
-                            VStack(spacing: 16) {
-                                Image(systemName: "leaf.fill")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.primaryGreen.opacity(0.5))
-                                
-                                Text("No cashback entries yet")
-                                    .font(.system(.title3, design: .rounded))
-                                    .foregroundColor(.textPrimary)
-                                
-                                Text("Add your first cashback entry")
-                                    .font(.system(.body, design: .rounded))
-                                    .foregroundColor(.textSecondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .padding(.vertical, 40)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.white)
-                            .cornerRadius(16)
-                            .padding(.horizontal)
-                        } else {
-                            // Cashback entries
-                            ForEach(cardEntries) { entry in
-                                CashbackEntryItem(entry: entry)
-                                    .padding(.horizontal)
-                            }
-                        }
-                    }
+                    CashbackHistorySection(
+                        cardEntries: cardEntries,
+                        showingDeleteConfirmation: $showingDeleteConfirmation,
+                        entryToDelete: $entryToDelete,
+                        cashbackStore: cashbackStore
+                    )
                     
-                    // Action buttons
-                    HStack(spacing: 10) {
-                        Button(action: {
-                            showingScanStatement = true
-                        }) {
-                            HStack {
-                                Image(systemName: "doc.text.viewfinder")
-                                Text("Scan")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.primaryGreen)
-                            .foregroundColor(.white)
-                            .cornerRadius(22.5)
-                            .font(.system(.subheadline, design: .rounded))
-                        }
-                        
-                        Button(action: {
-                            showingManualEntry = true
-                        }) {
-                            HStack {
-                                Image(systemName: "plus")
-                                Text("Manual")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.white)
-                            .foregroundColor(.primaryGreen)
-                            .cornerRadius(22.5)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 22.5)
-                                    .stroke(Color.primaryGreen, lineWidth: 1)
-                            )
-                            .font(.system(.subheadline, design: .rounded))
-                        }
-                    }
-                    .padding(.horizontal)
+                    ActionButtons(
+                        showingScanStatement: $showingScanStatement,
+                        showingManualEntry: $showingManualEntry
+                    )
                     
-                    // Bottom spacer for tab bar
                     Spacer(minLength: 80)
                 }
                 .padding(.vertical)
@@ -233,12 +106,268 @@ struct CardDetailView: View {
         .sheet(isPresented: $showingEditCard) {
             EditCardView(card: card)
         }
+        .confirmationDialog(
+            "Delete Cashback Entry",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let id = entryToDelete {
+                    cashbackStore.deleteEntry(id: id)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                entryToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this cashback entry?")
+        }
+    }
+}
+
+// Header component
+private struct CardDetailHeader: View {
+    let presentationMode: Binding<PresentationMode>
+    @Binding var showingEditCard: Bool
+    
+    var body: some View {
+        HStack {
+            Button(action: {
+                presentationMode.wrappedValue.dismiss()
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primaryGreen)
+                    .padding(8)
+                    .background(Color.secondaryGreen.opacity(0.2))
+                    .clipShape(Circle())
+            }
+            
+            Spacer()
+            
+            Text("Card Details")
+                .font(.system(.headline, design: .rounded))
+                .foregroundColor(.textPrimary)
+            
+            Spacer()
+            
+            Button(action: {
+                showingEditCard = true
+            }) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primaryGreen)
+                    .padding(8)
+                    .background(Color.secondaryGreen.opacity(0.2))
+                    .clipShape(Circle())
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+// Card visualization component
+private struct CardVisualization: View {
+    let card: Card
+    
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color(hex: card.colorHex))
+                .frame(height: 160)
+                .cornerRadius(12)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                Text(card.nickname)
+                    .font(.system(.title3, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                ZStack {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(width: 50, height: 35)
+                        .cornerRadius(5)
+                    
+                    Text(card.issuer)
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                }
+                
+                Spacer()
+                
+                HStack {
+                    Text("•••• •••• •••• \(card.lastFourDigits)")
+                        .font(.system(.body, design: .rounded))
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    if let statementDay = card.statementDay {
+                        Text("Statement: \(statementDay.ordinal) of month")
+                            .font(.system(.caption, design: .rounded))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal)
+    }
+}
+
+// Cashback summary component
+private struct CashbackSummary: View {
+    let totalCashback: Decimal
+    
+    private func formatCurrency(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "₹"
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? "₹0.00"
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Cashback Earned with this Card")
+                .font(.system(.subheadline, design: .rounded))
+                .foregroundColor(.textPrimary)
+            
+            Text(formatCurrency(totalCashback))
+                .font(.system(.title2, design: .rounded))
+                .fontWeight(.bold)
+                .foregroundColor(.primaryGreen)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .padding(.horizontal)
+    }
+}
+
+// Action buttons component
+private struct ActionButtons: View {
+    @Binding var showingScanStatement: Bool
+    @Binding var showingManualEntry: Bool
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: {
+                showingScanStatement = true
+            }) {
+                HStack {
+                    Image(systemName: "doc.text.viewfinder")
+                    Text("Scan")
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.primaryGreen)
+                .foregroundColor(.white)
+                .cornerRadius(22.5)
+                .font(.system(.subheadline, design: .rounded))
+            }
+            
+            Button(action: {
+                showingManualEntry = true
+            }) {
+                HStack {
+                    Image(systemName: "plus")
+                    Text("Manual")
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                .foregroundColor(.primaryGreen)
+                .cornerRadius(22.5)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22.5)
+                        .stroke(Color.primaryGreen, lineWidth: 1)
+                )
+                .font(.system(.subheadline, design: .rounded))
+            }
+        }
+        .padding(.horizontal)
+    }
+}
+
+// Cashback history section
+private struct CashbackHistorySection: View {
+    let cardEntries: [CashbackEntry]
+    @Binding var showingDeleteConfirmation: Bool
+    @Binding var entryToDelete: UUID?
+    let cashbackStore: CashbackStore
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Cashback History")
+                .font(.system(.headline, design: .rounded))
+                .foregroundColor(.textPrimary)
+                .padding(.horizontal)
+            
+            if cardEntries.isEmpty {
+                EmptyCashbackState()
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(cardEntries) { entry in
+                        CashbackEntryItem(entry: entry)
+                            .onLongPressGesture {
+                                entryToDelete = entry.id
+                                showingDeleteConfirmation = true
+                            }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+        .onAppear {
+            print("🔍 CashbackHistorySection appeared - Entries count: \(cardEntries.count)")
+            if cardEntries.isEmpty {
+                print("🔍 CashbackHistorySection - No entries found")
+            } else {
+                print("🔍 CashbackHistorySection - Entries found: \(cardEntries.count)")
+                cardEntries.forEach { entry in
+                    print("🔍 Entry: \(entry.id) - \(entry.periodMonthYear()) - ₹\(entry.amount)")
+                }
+            }
+        }
+    }
+}
+
+// Empty state component
+private struct EmptyCashbackState: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 50))
+                .foregroundColor(.primaryGreen.opacity(0.5))
+            
+            Text("No cashback entries yet")
+                .font(.system(.title3, design: .rounded))
+                .foregroundColor(.textPrimary)
+            
+            Text("Add your first cashback entry")
+                .font(.system(.body, design: .rounded))
+                .foregroundColor(.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 40)
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
+        .cornerRadius(16)
+        .padding(.horizontal)
     }
 }
 
 // Cashback Entry List Item
 struct CashbackEntryItem: View {
     let entry: CashbackEntry
+    var onDelete: () -> Void = {}
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -266,13 +395,19 @@ struct CashbackEntryItem: View {
                 .font(.system(.caption, design: .rounded))
                 .foregroundColor(.textSecondary)
             
-            // Amount (right-aligned)
+            // Amount (right-aligned) with delete hint
             HStack {
                 Spacer()
-                Text("₹\(NSDecimalNumber(decimal: entry.amount).stringValue)")
-                    .font(.system(.headline, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primaryGreen)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("₹\(NSDecimalNumber(decimal: entry.amount).stringValue)")
+                        .font(.system(.headline, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primaryGreen)
+                    
+                    Text("Long press to delete")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundColor(.gray)
+                }
             }
         }
         .padding()

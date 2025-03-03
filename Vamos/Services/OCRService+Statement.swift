@@ -21,8 +21,8 @@ extension OCRService {
             .eraseToAnyPublisher()
     }
     
-        // Extract structured data from OCR text
-        private func extractStatementData(from text: String) -> StatementData {
+    // Extract structured data from OCR text
+    private func extractStatementData(from text: String) -> StatementData {
         print("🟢 Extracting data from statement text")
         
         // Initialize with empty values
@@ -80,16 +80,41 @@ extension OCRService {
             }
         }
         
-        // Extract cashback amount - simplified pattern
-        if let cashbackMatch = text.range(of: "(?:Cashback|Cash ?back|Reward|Rewards)[^0-9]*(?:Rs\\.?|₹)?\\s*([0-9,.]+)", options: .regularExpression) {
-            let cashbackText = String(text[cashbackMatch])
-            if let amountMatch = cashbackText.range(of: "[0-9,.]+", options: .regularExpression) {
-                let amountString = String(cashbackText[amountMatch]).replacingOccurrences(of: ",", with: "")
-                if let amount = Decimal(string: amountString) {
-                    data.cashbackAmount = amount
-                    print("🟢 Found cashback amount: \(amount)")
+        // Modified - Extract multiple cashback entries
+        var cashbackEntries: [Decimal] = []
+        
+        // Define patterns to find cashback entries
+        let cashbackPatterns = [
+            "(?:Cashback|Cash ?back|Reward|Rewards)[^0-9]*(?:Rs\\.?|₹)?\\s*([0-9,.]+)",
+            "(?:Cashback earned|Cash ?back earned|Reward earned|Rewards earned)[^0-9]*(?:Rs\\.?|₹)?\\s*([0-9,.]+)",
+            "(?:cashback credited|cash ?back credited|reward credited|rewards credited)[^0-9]*(?:Rs\\.?|₹)?\\s*([0-9,.]+)"
+        ]
+        
+        for pattern in cashbackPatterns {
+            let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
+            if let regex = regex {
+                let nsString = text as NSString
+                let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsString.length))
+                
+                for match in matches {
+                    if match.numberOfRanges > 1 {
+                        let amountRange = match.range(at: 1)
+                        let amountString = nsString.substring(with: amountRange).replacingOccurrences(of: ",", with: "")
+                        if let amount = Decimal(string: amountString) {
+                            cashbackEntries.append(amount)
+                            print("🟢 Found cashback entry: \(amount)")
+                        }
+                    }
                 }
             }
+        }
+        
+        // If we found any cashback entries, sum them up
+        if !cashbackEntries.isEmpty {
+            let totalCashback = cashbackEntries.reduce(0, +)
+            data.cashbackAmount = totalCashback
+            data.cashbackEntries = cashbackEntries
+            print("🟢 Total cashback amount: \(totalCashback) from \(cashbackEntries.count) entries")
         }
         
         // Extract bank name
@@ -111,6 +136,7 @@ extension OCRService {
         var periodStart: Date?
         var periodEnd: Date?
         var cashbackAmount: Decimal?
+        var cashbackEntries: [Decimal]? // New field for individual entries
         var bankName: String?
         
         // Initialize with empty values
@@ -119,6 +145,7 @@ extension OCRService {
             periodStart = nil
             periodEnd = nil
             cashbackAmount = nil
+            cashbackEntries = nil
             bankName = nil
         }
     }

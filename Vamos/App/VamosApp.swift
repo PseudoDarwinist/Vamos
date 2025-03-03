@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct VamosApp: App {
-    @State private var selectedTab: Tab = .home
+    @State private var selectedTab: Tab = .cards
     
         var body: some Scene {
         WindowGroup {

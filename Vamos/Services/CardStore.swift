@@ -11,26 +11,22 @@ class CardStore: ObservableObject {
     private let cardsKey = "savedCards"
     
     init() {
-    loadCards()
-    
-    // Remove this block entirely to avoid adding sample cards
-    /*
-    // Add sample cards if none exist
-    if cards.isEmpty {
-        #if DEBUG
-        // Only add sample cards in debug mode and if there are no cards
-        cards = Card.sampleCards
-        saveCards()
-        #endif
+        print("🔍 CardStore init - Starting initialization")
+        loadCards()
+        print("🔍 CardStore init - After loadCards, cards count: \(cards.count)")
+        
+        // Force a UI update after initialization
+        DispatchQueue.main.async {
+            self.objectWillChange.send()
+        }
     }
-    */
-}
     
     // MARK: - CRUD Operations
     
     func addCard(_ card: Card) {
         cards.append(card)
         saveCards()
+        // Force a UI update
         objectWillChange.send()
     }
     
@@ -38,6 +34,7 @@ class CardStore: ObservableObject {
         if let index = cards.firstIndex(where: { $0.id == updatedCard.id }) {
             cards[index] = updatedCard
             saveCards()
+            // Force a UI update
             objectWillChange.send()
         }
     }
@@ -45,6 +42,7 @@ class CardStore: ObservableObject {
     func deleteCard(id: UUID) {
         cards.removeAll { $0.id == id }
         saveCards()
+        // Force a UI update
         objectWillChange.send()
     }
     
@@ -85,6 +83,7 @@ class CardStore: ObservableObject {
         cards.removeAll()
         UserDefaults.standard.removeObject(forKey: cardsKey)
         print("🧹 Cleared all saved cards")
+        // Force a UI update
         objectWillChange.send()
     }
 }

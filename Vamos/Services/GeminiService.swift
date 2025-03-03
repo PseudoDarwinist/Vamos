@@ -131,20 +131,26 @@ class GeminiService {
         )
         
         // Updated prompt to extract both merchant and aggregator information
-        let textPart = GeminiPart(
+       let textPart = GeminiPart(
             text: """
-            Extract the following information from this receipt image:
+            Extract the following information from this credit card statement:
             - date (in format YYYY-MM-DD)
-            - merchant_name (the store, restaurant, or business name)
-            - platform_name (if this is from a delivery app or service like Swiggy, Zomato, Amazon, etc.)
-            - total_amount (just the number, without currency symbol)
-            - category (e.g., Groceries, Dining, Transportation)
+            - merchant_name (the bank or credit card issuer)
+            - platform_name (if any delivery platform is mentioned)
+            - total_amount (total cashback amount, sum of all cashback entries)
+            - cashback_entries (array of individual cashback amounts)
+            - category (e.g., Banking, Credit Card)
             
-            For food delivery receipts (Swiggy, Zomato, Uber Eats, etc.):
-            - Make sure to identify both the platform (e.g., "Swiggy") and the restaurant (e.g., "KFC")
-            - Put the platform name in "platform_name" and the restaurant in "merchant_name"
+            IMPORTANT: Look for multiple cashback entries or rewards throughout the entire statement. 
+            These might appear as separate line items with terms like:
+            - "Cashback credited"
+            - "Reward points"
+            - "Cashback earned"
+            - "Bonus cashback"
+            - "Cashback"
             
             Format the response as a JSON object with these exact keys.
+            For cashback_entries, provide an array of all individual cashback amounts found.
             If you cannot find a specific piece of information, use null for that field.
             """
         )

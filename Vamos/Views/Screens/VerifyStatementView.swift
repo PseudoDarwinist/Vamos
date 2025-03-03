@@ -55,6 +55,17 @@ struct VerifyStatementView: View {
         (Decimal(string: cashbackAmount) ?? 0) > 0
     }
     
+    // Format date range (e.g., "Feb 1 - Feb 28, 2025")
+    func formatDateRange(start: Date, end: Date) -> String {
+        let startFormatter = DateFormatter()
+        startFormatter.dateFormat = "MMM d"
+        
+        let endFormatter = DateFormatter()
+        endFormatter.dateFormat = "MMM d, yyyy"
+        
+        return "\(startFormatter.string(from: start)) - \(endFormatter.string(from: end))"
+    }
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -148,70 +159,9 @@ struct VerifyStatementView: View {
                                     .foregroundColor(.textSecondary)
                                 
                                 if cardStore.cards.isEmpty {
-                                    // No cards message
-                                    HStack {
-                                        Text("No cards added yet")
-                                            .foregroundColor(.gray)
-                                        Spacer()
-                                        Button("Add Card") {
-                                            // Would use a coordinator in a real app
-                                            presentationMode.wrappedValue.dismiss()
-                                        }
-                                        .foregroundColor(.primaryGreen)
-                                    }
-                                    .padding()
-                                    .background(Color.white)
-                                    .cornerRadius(10)
-                                    .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+                                    cardEmptyState
                                 } else {
-                                    // Card picker
-                                    Menu {
-                                        ForEach(cardStore.cards) { card in
-                                            Button {
-                                                selectedCardId = card.id
-                                            } label: {
-                                                HStack {
-                                                    Text("\(card.nickname) (••••\(card.lastFourDigits))")
-                                                    if selectedCardId == card.id {
-                                                        Image(systemName: "checkmark")
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    } label: {
-                                        HStack {
-                                            if let cardId = selectedCardId, let card = cardStore.getCard(id: cardId) {
-                                                HStack {
-                                                    ZStack {
-                                                        Rectangle()
-                                                            .fill(card.color)
-                                                            .frame(width: 35, height: 25)
-                                                            .cornerRadius(3)
-                                                        
-                                                        Text(card.issuer)
-                                                            .font(.system(.caption, design: .rounded))
-                                                            .foregroundColor(.white)
-                                                    }
-                                                    
-                                                    Text("\(card.nickname) (••••\(card.lastFourDigits))")
-                                                        .foregroundColor(.textPrimary)
-                                                }
-                                            } else {
-                                                Text("Select a card")
-                                                    .foregroundColor(.gray)
-                                            }
-                                            
-                                            Spacer()
-                                            
-                                            Image(systemName: "chevron.down")
-                                                .foregroundColor(.gray)
-                                        }
-                                        .padding()
-                                        .background(Color.white)
-                                        .cornerRadius(10)
-                                        .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
-                                    }
-                                    .disabled(cardStore.cards.isEmpty)
+                                    cardPickerView
                                 }
                             }
                             .padding(.horizontal)
@@ -245,41 +195,11 @@ struct VerifyStatementView: View {
                                     .font(.system(.subheadline, design: .rounded))
                                     .foregroundColor(.textSecondary)
                                 
-                                HStack {
-                                    Text("₹")
-                                        .font(.system(.body, design: .rounded))
-                                        .foregroundColor(.textPrimary)
-                                    
-                                    TextField("0.00", text: $cashbackAmount)
-                                        .keyboardType(.decimalPad)
-                                        .onChange(of: cashbackAmount) { newValue in
-                                            // Ensure only valid decimal input
-                                            let filtered = newValue.filter { 
-                                                "0123456789.".contains($0) 
-                                            }
-                                            
-                                            // Allow only one decimal point
-                                            if filtered.filter({ $0 == "." }).count > 1,
-                                               let lastIndex = filtered.lastIndex(of: ".") {
-                                                var newFiltered = filtered
-                                                newFiltered.remove(at: lastIndex)
-                                                cashbackAmount = newFiltered
-                                            } else {
-                                                cashbackAmount = filtered
-                                            }
-                                        }
-                                    
-                                    Spacer()
-                                    
-                                    // Edit icon
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.primaryGreen.opacity(0.7))
+                                if let entries = extractedData.cashbackEntries, entries.count > 1 {
+                                    multipleCashbackEntries(entries: entries)
+                                } else {
+                                    singleCashbackEntry
                                 }
-                                .padding()
-                                .background(Color.white)
-                                .cornerRadius(10)
-                                .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
                             }
                             .padding(.horizontal)
                             
@@ -321,18 +241,187 @@ struct VerifyStatementView: View {
         }
     }
     
-    // Format date range (e.g., "Feb 1 - Feb 28, 2025")
-    private func formatDateRange(start: Date, end: Date) -> String {
-        let startFormatter = DateFormatter()
-        startFormatter.dateFormat = "MMM d"
-        
-        let endFormatter = DateFormatter()
-        endFormatter.dateFormat = "MMM d, yyyy"
-        
-        return "\(startFormatter.string(from: start)) - \(endFormatter.string(from: end))"
+    // MARK: - UI Components
+    
+    // Empty state for no cards
+    var cardEmptyState: some View {
+        HStack {
+            Text("No cards added yet")
+                .foregroundColor(.gray)
+            Spacer()
+            Button("Add Card") {
+                // Would use a coordinator in a real app
+                presentationMode.wrappedValue.dismiss()
+            }
+            .foregroundColor(.primaryGreen)
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(10)
+        .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
     }
     
-    private func saveEntry() {
+    // Card picker menu
+    var cardPickerView: some View {
+        Menu {
+            ForEach(cardStore.cards) { card in
+                Button {
+                    selectedCardId = card.id
+                } label: {
+                    HStack {
+                        Text("\(card.nickname) (••••\(card.lastFourDigits))")
+                        if selectedCardId == card.id {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack {
+                if let cardId = selectedCardId, let card = cardStore.getCard(id: cardId) {
+                    HStack {
+                        ZStack {
+                            Rectangle()
+                                .fill(card.color)
+                                .frame(width: 35, height: 25)
+                                .cornerRadius(3)
+                            
+                            Text(card.issuer)
+                                .font(.system(.caption, design: .rounded))
+                                .foregroundColor(.white)
+                        }
+                        
+                        Text("\(card.nickname) (••••\(card.lastFourDigits))")
+                            .foregroundColor(.textPrimary)
+                    }
+                } else {
+                    Text("Select a card")
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.down")
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(10)
+            .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+        }
+        .disabled(cardStore.cards.isEmpty)
+    }
+    
+    // Single cashback entry UI
+    var singleCashbackEntry: some View {
+        HStack {
+            Text("₹")
+                .font(.system(.body, design: .rounded))
+                .foregroundColor(.textPrimary)
+            
+            TextField("0.00", text: $cashbackAmount)
+                .keyboardType(.decimalPad)
+                .onChange(of: cashbackAmount) { newValue in
+                    let filtered = newValue.filter { "0123456789.".contains($0) }
+                    
+                    if filtered.filter({ $0 == "." }).count > 1,
+                       let lastIndex = filtered.lastIndex(of: ".") {
+                        var newFiltered = filtered
+                        newFiltered.remove(at: lastIndex)
+                        cashbackAmount = newFiltered
+                    } else {
+                        cashbackAmount = filtered
+                    }
+                }
+            
+            Spacer()
+            
+            // Edit icon
+            Image(systemName: "pencil")
+                .font(.system(size: 14))
+                .foregroundColor(.primaryGreen.opacity(0.7))
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(10)
+        .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+    }
+    
+    // Multiple cashback entries UI
+    func multipleCashbackEntries(entries: [Decimal]) -> some View {
+        VStack(spacing: 8) {
+            // Total amount (editable)
+            HStack {
+                Text("₹")
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(.textPrimary)
+                
+                TextField("0.00", text: $cashbackAmount)
+                    .keyboardType(.decimalPad)
+                    .onChange(of: cashbackAmount) { newValue in
+                        let filtered = newValue.filter { "0123456789.".contains($0) }
+                        
+                        if filtered.filter({ $0 == "." }).count > 1,
+                           let lastIndex = filtered.lastIndex(of: ".") {
+                            var newFiltered = filtered
+                            newFiltered.remove(at: lastIndex)
+                            cashbackAmount = newFiltered
+                        } else {
+                            cashbackAmount = filtered
+                        }
+                    }
+                
+                Spacer()
+                
+                Text("Total")
+                    .font(.system(.footnote, design: .rounded))
+                    .foregroundColor(.primaryGreen.opacity(0.7))
+                
+                // Edit icon
+                Image(systemName: "pencil")
+                    .font(.system(size: 14))
+                    .foregroundColor(.primaryGreen.opacity(0.7))
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(10)
+            .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+            
+            // Individual entries section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Individual cashback entries:")
+                    .font(.system(.footnote, design: .rounded))
+                    .foregroundColor(.textSecondary)
+                    .padding(.leading, 8)
+                    .padding(.top, 4)
+                
+                VStack(spacing: 6) {
+                    ForEach(entries.indices, id: \.self) { index in
+                        HStack {
+                            Text("Entry \(index + 1):")
+                                .font(.system(.caption, design: .rounded))
+                                .foregroundColor(.textSecondary)
+                            
+                            Spacer()
+                            
+                            Text("₹\(NSDecimalNumber(decimal: entries[index]).stringValue)")
+                                .font(.system(.caption, design: .rounded))
+                                .foregroundColor(.textPrimary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                    }
+                }
+                .padding(.vertical, 8)
+                .background(Color.white)
+                .cornerRadius(10)
+                .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+            }
+        }
+    }
+    
+    // Save the cashback entry
+    func saveEntry() {
         guard let cardId = selectedCardId,
               let amount = Decimal(string: cashbackAmount) else {
             return

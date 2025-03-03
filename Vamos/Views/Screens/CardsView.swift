@@ -1,10 +1,8 @@
-// File: Vamos/Views/Screens/CardsView.swift
-
 import SwiftUI
 import Combine
 
 struct CardsView: View {
-    @ObservedObject private var cardStore = CardStore.shared
+    @StateObject private var cardStore = CardStore.shared
     @ObservedObject private var cashbackStore = CashbackStore.shared
     
     @State private var selectedCard: Card?
@@ -12,11 +10,59 @@ struct CardsView: View {
     @State private var showingScanStatement = false
     @State private var showingManualEntry = false
     @State private var navigateToCardDetail = false
+    @State private var showingDeleteConfirmation = false
+    @State private var cardToDelete: UUID? = nil
     
     // Total cashback across all cards
     private var totalCashback: Decimal {
         cashbackStore.getTotalCashback()
     }
+    
+    var body: some View {
+        NavigationView {
+            CardsContent(
+                cardStore: cardStore,
+                cashbackStore: cashbackStore,
+                totalCashback: totalCashback,
+                selectedCard: $selectedCard,
+                showingAddCard: $showingAddCard,
+                showingScanStatement: $showingScanStatement,
+                showingManualEntry: $showingManualEntry,
+                navigateToCardDetail: $navigateToCardDetail,
+                showingDeleteConfirmation: $showingDeleteConfirmation,
+                cardToDelete: $cardToDelete
+            )
+        }
+        .onAppear {
+            print("🔍 CardsView appeared - Cards count: \(cardStore.cards.count)")
+            if cardStore.cards.isEmpty {
+                print("🔍 CardsView - No cards found")
+            } else {
+                print("🔍 CardsView - Cards found: \(cardStore.cards.count)")
+                cardStore.cards.forEach { card in
+                    print("🔍 Card: \(card.nickname) - \(card.issuer) - \(card.lastFourDigits)")
+                }
+            }
+            
+            // Force a refresh
+            DispatchQueue.main.async {
+                cardStore.objectWillChange.send()
+            }
+        }
+    }
+}
+
+private struct CardsContent: View {
+    let cardStore: CardStore
+    let cashbackStore: CashbackStore
+    let totalCashback: Decimal
+    @Binding var selectedCard: Card?
+    @Binding var showingAddCard: Bool
+    @Binding var showingScanStatement: Bool
+    @Binding var showingManualEntry: Bool
+    @Binding var navigateToCardDetail: Bool
+    @Binding var showingDeleteConfirmation: Bool
+    @Binding var cardToDelete: UUID?
     
     // Format currency
     private func formatCurrency(_ amount: Decimal) -> String {
@@ -28,231 +74,364 @@ struct CardsView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Background
-                Color.background
-                    .edgesIgnoringSafeArea(.all)
-                
-                // Main content
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Header
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("bloom")
-                                .font(.system(.title, design: .rounded))
-                                .fontWeight(.medium)
-                                .foregroundColor(.primaryGreen)
-                            
-                            Text("My Cards & Cashback")
-                                .font(.system(.headline, design: .rounded))
-                                .foregroundColor(.textPrimary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .background(
-                            ZStack(alignment: .topTrailing) {
-                                Color.white
-                                    .cornerRadius(16)
-                                
-                                // Organic shapes in background
-                                Circle()
-                                    .fill(Color.primaryGreen.opacity(0.1))
-                                    .frame(width: 80, height: 80)
-                                    .offset(x: 20, y: -20)
-                                
-                                Circle()
-                                    .fill(Color.accent.opacity(0.15))
-                                    .frame(width: 40, height: 40)
-                                    .offset(x: -30, y: 30)
-                            }
-                        )
-                        
-                        // Total Cashback Summary
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Total Cashback Earned")
-                                .font(.system(.subheadline, design: .rounded))
-                                .foregroundColor(.textPrimary)
-                            
-                            Text(formatCurrency(totalCashback))
-                                .font(.system(.title, design: .rounded))
-                                .fontWeight(.bold)
-                                .foregroundColor(.primaryGreen)
-                            
-                            Text("This Year")
-                                .font(.system(.caption, design: .rounded))
-                                .foregroundColor(.textSecondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .background(Color.secondaryGreen.opacity(0.15))
-                        .cornerRadius(16)
-                        
-                        // Action Buttons
-                        HStack(spacing: 10) {
-                            Button(action: {
-                                showingScanStatement = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "doc.text.viewfinder")
-                                    Text("Scan Statement")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.primaryGreen)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                                .font(.system(.subheadline, design: .rounded))
-                            }
-                            
-                            Button(action: {
-                                showingManualEntry = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "plus")
-                                    Text("Add Manually")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.white)
-                                .foregroundColor(.primaryGreen)
-                                .cornerRadius(10)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(Color.primaryGreen, lineWidth: 1)
-                                )
-                                .font(.system(.subheadline, design: .rounded))
-                            }
-                        }
-                        
-                        // My Cards Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("My Cards")
-                                .font(.system(.headline, design: .rounded))
-                                .foregroundColor(.textPrimary)
-                                .padding(.horizontal)
-                            
-                            if cardStore.cards.isEmpty {
-                                // Empty state
-                                VStack(spacing: 20) {
-                                    Image(systemName: "creditcard")
-                                        .font(.system(size: 50))
-                                        .foregroundColor(.secondaryGreen.opacity(0.5))
-                                    
-                                    Text("No cards added yet")
-                                        .font(.system(.title3, design: .rounded))
-                                        .foregroundColor(.textPrimary)
-                                    
-                                    Text("Add your first card to start tracking cashback")
-                                        .font(.system(.body, design: .rounded))
-                                        .foregroundColor(.textSecondary)
-                                        .multilineTextAlignment(.center)
-                                    
-                                    Button(action: {
-                                        showingAddCard = true
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "plus")
-                                            Text("Add Your First Card")
-                                        }
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 12)
-                                        .background(Color.primaryGreen)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(25)
-                                        .font(.system(.body, design: .rounded))
-                                    }
-                                    .padding(.top, 10)
-                                }
-                                .padding(.vertical, 40)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.white)
-                                .cornerRadius(16)
-                            } else {
-                                // Card list
-                                ForEach(cardStore.cards) { card in
-                                    CardListItem(
-                                        card: card,
-                                        cashbackAmount: cashbackStore.getCashbackForCard(cardId: card.id)
-                                    )
-                                    .onTapGesture {
-                                        selectedCard = card
-                                        navigateToCardDetail = true
-                                    }
-                                }
-                                
-                                // Add Card Button
-                                Button(action: {
-                                    showingAddCard = true
-                                }) {
-                                    HStack {
-                                        Circle()
-                                            .fill(Color.accent.opacity(0.3))
-                                            .frame(width: 40, height: 40)
-                                            .overlay(
-                                                Image(systemName: "plus")
-                                                    .foregroundColor(.accent)
-                                            )
-                                        
-                                        Text("Add a new card")
-                                            .font(.system(.body, design: .rounded))
-                                            .foregroundColor(.accent)
-                                        
-                                        Spacer()
-                                    }
-                                    .padding()
-                                    .background(Color.white)
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.accent.opacity(0.3), lineWidth: 1)
-                                            .dashStyle(dashPattern: [4])
-                                    )
-                                }
-                            }
-                            
-                            // Monthly Insights (if there's data)
-                            if !cashbackStore.entries.isEmpty {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Monthly Insights")
-                                        .font(.system(.headline, design: .rounded))
-                                        .foregroundColor(.textPrimary)
-                                        .padding(.top, 20)
-                                        .padding(.horizontal)
-                                    
-                                    MonthlyCashbackChart(data: cashbackStore.getMonthlyCashback())
-                                        .frame(height: 150)
-                                        .padding()
-                                        .background(Color.white)
-                                        .cornerRadius(16)
-                                }
-                            }
-                        }
-                        
-                        // Bottom spacer for tab bar
-                        Spacer(minLength: 80)
+        ZStack {
+            Color.background
+                .edgesIgnoringSafeArea(.all)
+            
+            ScrollView {
+                VStack(spacing: 20) {
+                    HeaderView()
+                    
+                    CashbackSummaryView(totalCashback: totalCashback)
+                    
+                    ActionButtonsView(
+                        showingScanStatement: $showingScanStatement,
+                        showingManualEntry: $showingManualEntry
+                    )
+                    
+                    CardsSection(
+                        cardStore: cardStore,
+                        cashbackStore: cashbackStore,
+                        showingAddCard: $showingAddCard,
+                        selectedCard: $selectedCard,
+                        navigateToCardDetail: $navigateToCardDetail,
+                        showingDeleteConfirmation: $showingDeleteConfirmation,
+                        cardToDelete: $cardToDelete
+                    )
+                    
+                    if !cashbackStore.entries.isEmpty {
+                        MonthlyInsightsView(cashbackStore: cashbackStore)
                     }
-                    .padding(.horizontal)
+                    
+                    Spacer(minLength: 80)
                 }
+                .padding(.horizontal)
+            }
+            
+            NavigationLink(
+                destination: selectedCard.map { CardDetailView(card: $0) },
+                isActive: $navigateToCardDetail
+            ) {
+                EmptyView()
+            }
+        }
+        .navigationBarHidden(true)
+        .sheet(isPresented: $showingAddCard) {
+            AddCardView()
+        }
+        .sheet(isPresented: $showingScanStatement) {
+            ScanStatementView()
+        }
+        .sheet(isPresented: $showingManualEntry) {
+            ManualEntryView()
+        }
+        .confirmationDialog(
+            "Delete Card",
+            isPresented: $showingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let id = cardToDelete {
+                    cardStore.deleteCard(id: id)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                cardToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this card? This will also delete all associated cashback entries.")
+        }
+    }
+}
+
+private struct HeaderView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("bloom")
+                .font(.system(.title, design: .rounded))
+                .fontWeight(.medium)
+                .foregroundColor(.primaryGreen)
+            
+            Text("My Cards & Cashback")
+                .font(.system(.headline, design: .rounded))
+                .foregroundColor(.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            ZStack(alignment: .topTrailing) {
+                Color.white
+                    .cornerRadius(16)
                 
-                // Navigation Links (hidden)
-                NavigationLink(
-                    destination: selectedCard.map { CardDetailView(card: $0) },
-                    isActive: $navigateToCardDetail
-                ) {
-                    EmptyView()
+                Circle()
+                    .fill(Color.primaryGreen.opacity(0.1))
+                    .frame(width: 80, height: 80)
+                    .offset(x: 20, y: -20)
+                
+                Circle()
+                    .fill(Color.accent.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                    .offset(x: -30, y: 30)
+            }
+        )
+    }
+}
+
+private struct CashbackSummaryView: View {
+    let totalCashback: Decimal
+    
+    private func formatCurrency(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "₹"
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? "₹0.00"
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Total Cashback Earned")
+                .font(.system(.subheadline, design: .rounded))
+                .foregroundColor(.textPrimary)
+            
+            Text(formatCurrency(totalCashback))
+                .font(.system(.title, design: .rounded))
+                .fontWeight(.bold)
+                .foregroundColor(.primaryGreen)
+            
+            Text("This Year")
+                .font(.system(.caption, design: .rounded))
+                .foregroundColor(.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color.secondaryGreen.opacity(0.15))
+        .cornerRadius(16)
+    }
+}
+
+private struct ActionButtonsView: View {
+    @Binding var showingScanStatement: Bool
+    @Binding var showingManualEntry: Bool
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: {
+                showingScanStatement = true
+            }) {
+                HStack {
+                    Image(systemName: "doc.text.viewfinder")
+                    Text("Scan Statement")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.primaryGreen)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+                .font(.system(.subheadline, design: .rounded))
+            }
+            
+            Button(action: {
+                showingManualEntry = true
+            }) {
+                HStack {
+                    Image(systemName: "plus")
+                    Text("Add Manually")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.white)
+                .foregroundColor(.primaryGreen)
+                .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.primaryGreen, lineWidth: 1)
+                )
+                .font(.system(.subheadline, design: .rounded))
+            }
+        }
+    }
+}
+
+private struct CardsSection: View {
+    let cardStore: CardStore
+    let cashbackStore: CashbackStore
+    @Binding var showingAddCard: Bool
+    @Binding var selectedCard: Card?
+    @Binding var navigateToCardDetail: Bool
+    @Binding var showingDeleteConfirmation: Bool
+    @Binding var cardToDelete: UUID?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("My Cards")
+                .font(.system(.headline, design: .rounded))
+                .foregroundColor(.textPrimary)
+                .padding(.horizontal)
+            
+            // Force unwrap the cards array to ensure we're checking the actual array
+            let cards = cardStore.cards
+            
+            if cards.isEmpty {
+                EmptyCardsView(showingAddCard: $showingAddCard)
+            } else {
+                CardsList(
+                    cardStore: cardStore,
+                    cashbackStore: cashbackStore,
+                    selectedCard: $selectedCard,
+                    navigateToCardDetail: $navigateToCardDetail,
+                    showingDeleteConfirmation: $showingDeleteConfirmation,
+                    cardToDelete: $cardToDelete
+                )
+                
+                AddCardButton(showingAddCard: $showingAddCard)
+            }
+        }
+        .onAppear {
+            print("🔍 CardsSection appeared - Cards count: \(cardStore.cards.count)")
+            if cardStore.cards.isEmpty {
+                print("🔍 CardsSection - No cards found, showing EmptyCardsView")
+            } else {
+                print("🔍 CardsSection - Cards found: \(cardStore.cards.count), showing CardsList")
+                cardStore.cards.forEach { card in
+                    print("🔍 CardsSection - Card: \(card.id) - \(card.nickname)")
                 }
             }
-            .navigationBarHidden(true)
-            .sheet(isPresented: $showingAddCard) {
-                AddCardView()
+        }
+    }
+}
+
+private struct EmptyCardsView: View {
+    @Binding var showingAddCard: Bool
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "creditcard")
+                .font(.system(size: 50))
+                .foregroundColor(.secondaryGreen.opacity(0.5))
+            
+            Text("No cards added yet")
+                .font(.system(.title3, design: .rounded))
+                .foregroundColor(.textPrimary)
+            
+            Text("Add your first card to start tracking cashback")
+                .font(.system(.body, design: .rounded))
+                .foregroundColor(.textSecondary)
+                .multilineTextAlignment(.center)
+            
+            Button(action: {
+                showingAddCard = true
+            }) {
+                HStack {
+                    Image(systemName: "plus")
+                    Text("Add Your First Card")
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.primaryGreen)
+                .foregroundColor(.white)
+                .cornerRadius(25)
+                .font(.system(.body, design: .rounded))
             }
-            .sheet(isPresented: $showingScanStatement) {
-                ScanStatementView()
+            .padding(.top, 10)
+        }
+        .padding(.vertical, 40)
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
+        .cornerRadius(16)
+    }
+}
+
+private struct CardsList: View {
+    @ObservedObject var cardStore: CardStore
+    let cashbackStore: CashbackStore
+    @Binding var selectedCard: Card?
+    @Binding var navigateToCardDetail: Bool
+    @Binding var showingDeleteConfirmation: Bool
+    @Binding var cardToDelete: UUID?
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(cardStore.cards) { card in
+                CardListItem(
+                    card: card,
+                    cashbackAmount: cashbackStore.getCashbackForCard(cardId: card.id)
+                )
+                .onTapGesture {
+                    selectedCard = card
+                    navigateToCardDetail = true
+                }
+                .onLongPressGesture {
+                    cardToDelete = card.id
+                    showingDeleteConfirmation = true
+                }
+                .padding(.bottom, 8)
             }
-            .sheet(isPresented: $showingManualEntry) {
-                ManualEntryView()
+        }
+        .onAppear {
+            print("🔍 CardsList appeared - Cards count: \(cardStore.cards.count)")
+            if cardStore.cards.isEmpty {
+                print("🔍 CardsList - No cards found")
+            } else {
+                print("🔍 CardsList - Cards found: \(cardStore.cards.count)")
+                cardStore.cards.forEach { card in
+                    print("🔍 CardsList - Card: \(card.nickname) - \(card.issuer) - \(card.lastFourDigits)")
+                }
             }
+        }
+    }
+}
+
+private struct AddCardButton: View {
+    @Binding var showingAddCard: Bool
+    
+    var body: some View {
+        Button(action: {
+            showingAddCard = true
+        }) {
+            HStack {
+                Circle()
+                    .fill(Color.accent.opacity(0.3))
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: "plus")
+                            .foregroundColor(.accent)
+                    )
+                
+                Text("Add a new card")
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(.accent)
+                
+                Spacer()
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.accent.opacity(0.3), lineWidth: 1)
+                    .dashStyle(dashPattern: [4])
+            )
+        }
+    }
+}
+
+private struct MonthlyInsightsView: View {
+    let cashbackStore: CashbackStore
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Monthly Insights")
+                .font(.system(.headline, design: .rounded))
+                .foregroundColor(.textPrimary)
+                .padding(.top, 20)
+                .padding(.horizontal)
+            
+            MonthlyCashbackChart(data: cashbackStore.getMonthlyCashback())
+                .frame(height: 150)
+                .padding()
+                .background(Color.white)
+                .cornerRadius(16)
         }
     }
 }
@@ -292,10 +471,14 @@ struct CardListItem: View {
             Spacer()
             
             // Cashback amount
-            VStack(alignment: .trailing) {
+            VStack(alignment: .trailing, spacing: 4) {
                 Text("₹\(NSDecimalNumber(decimal: cashbackAmount).stringValue)")
                     .font(.system(.headline, design: .rounded))
                     .foregroundColor(.primaryGreen)
+                
+                Text("Long press to delete")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundColor(.gray)
             }
         }
         .padding()
