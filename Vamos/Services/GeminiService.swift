@@ -255,7 +255,7 @@ class GeminiService {
         // Create a description of the transactions for the prompt
         var transactionDescriptions = ""
         for transaction in transactions {
-            transactionDescriptions += "- \(transaction.merchant): $\(transaction.amount) on \(transaction.date.relativeDescription()) in category \(transaction.category.name)\n"
+            transactionDescriptions += "- \(transaction.merchant): ₹\(transaction.amount) on \(transaction.date.relativeDescription()) in category \(transaction.category.name)\n"
         }
         
         let part = GeminiPart(
@@ -293,7 +293,7 @@ class GeminiService {
         // Create a description of the transactions for the prompt
         var transactionDescriptions = ""
         for transaction in transactions {
-            transactionDescriptions += "- \(transaction.merchant): $\(transaction.amount) on \(transaction.date.relativeDescription()) in category \(transaction.category.name)\n"
+            transactionDescriptions += "- \(transaction.merchant): ₹\(transaction.amount) on \(transaction.date.relativeDescription()) in category \(transaction.category.name)\n"
         }
         
         let part = GeminiPart(

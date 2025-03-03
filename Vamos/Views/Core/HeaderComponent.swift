@@ -31,7 +31,7 @@ struct HeaderComponent: View {
                     .font(.system(.headline, design: .rounded))
                     .foregroundColor(.textPrimary)
                 
-                Text("$\(String(format: "%.2f", NSDecimalNumber(decimal: monthSummary.totalSpent).doubleValue))")
+                Text("₹\(String(format: "%.2f", NSDecimalNumber(decimal: monthSummary.totalSpent).doubleValue))")
                     .font(.system(.title, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(.primaryGreen)
