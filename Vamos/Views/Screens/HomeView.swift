@@ -9,7 +9,7 @@ struct HomeView: View {
     @State private var selectedCategory: Category?
     @State private var navigateToCategory = false
     
-    // Add an ObservedObject for the transaction store
+    // Add an ObservedObject for the transaction store to ensure updates
     @ObservedObject private var transactionStore = TransactionStore.shared
     
     // Services
@@ -112,11 +112,9 @@ struct HomeView: View {
                     }
                     .padding(.top)
                     
-                    // Hidden navigation link
+                    // Navigation link to CategoryDetailView (changed from CategoryDetailView to our common version)
                     NavigationLink(
-                        destination: selectedCategory.map { category in
-                            CategoryDetailView(category: category)
-                        },
+                        destination: selectedCategory.map { CategoryDetailView(category: $0) },
                         isActive: $navigateToCategory
                     ) {
                         EmptyView()
@@ -151,7 +149,7 @@ struct HomeView: View {
         
         // Update month summary with actual data
         monthSummary = MonthSummary(
-            id: monthSummary.id,
+            id: UUID(), // Create a new ID to force SwiftUI to recognize the change
             month: monthSummary.month,
             totalSpent: totalAmount,
             transactionCount: transactionStore.transactions.count,

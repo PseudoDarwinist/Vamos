@@ -23,8 +23,9 @@ struct ScanStatementView: View {
     @State private var showingCamera = false
     @State private var errorMessage: String?
     
-    // OCR service
+    // Services
     private let ocrService = OCRService()
+    private let geminiService = GeminiService()
     
     init(preselectedCard: Card? = nil) {
         self.preselectedCard = preselectedCard
@@ -315,16 +316,15 @@ struct ScanStatementView: View {
         isProcessing = true
         errorMessage = nil
         
-        // First try using Gemini to extract data
-        let geminiService = GeminiService()
-        
+        // IMPORTANT CHANGE: Using the new dedicated extractStatementInfo method
+        // instead of the previous generic extractReceiptInfo method
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
             isProcessing = false
             errorMessage = "Failed to process image"
             return
         }
         
-        geminiService.extractReceiptInfo(imageData: imageData)
+        geminiService.extractStatementInfo(imageData: imageData)
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
@@ -382,6 +382,19 @@ struct ScanStatementView: View {
                         statementData.cashbackAmount = Decimal(string: amountString.replacingOccurrences(of: ",", with: ""))
                     } else if let amount = data["total_amount"] as? NSNumber {
                         statementData.cashbackAmount = Decimal(amount.doubleValue)
+                    }
+                    
+                    // Extract cashback entries if present
+                    if let entries = data["cashback_entries"] as? [Any] {
+                        var cashbackEntries: [Decimal] = []
+                        for entry in entries {
+                            if let entryString = entry as? String, let amount = Decimal(string: entryString) {
+                                cashbackEntries.append(amount)
+                            } else if let entryNumber = entry as? NSNumber {
+                                cashbackEntries.append(Decimal(entryNumber.doubleValue))
+                            }
+                        }
+                        statementData.cashbackEntries = cashbackEntries
                     }
                     
                     // Extract bank name if present

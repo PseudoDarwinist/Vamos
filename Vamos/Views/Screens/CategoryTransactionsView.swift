@@ -6,6 +6,10 @@ struct CategoryTransactionsView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject private var transactionStore = TransactionStore.shared
     
+    // CHANGE 1: Add state variables for navigation
+    @State private var selectedTransaction: Transaction? = nil
+    @State private var navigateToTransaction = false
+    
     // Initialize with just a category (for category view)
     init(category: Category) {
         self.category = category
@@ -98,84 +102,106 @@ struct CategoryTransactionsView: View {
     }
     
     var body: some View {
-        ZStack {
-            // Background
-            Color.background
-                .edgesIgnoringSafeArea(.all)
-            
-            // Main content
-            VStack(spacing: 0) {
-                // Header with back button and category name
-                HStack {
-                    Button(action: {
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primaryGreen)
-                            .padding(8)
-                            .background(Color.secondaryGreen.opacity(0.2))
-                            .clipShape(Circle())
-                    }
-                    
-                    Spacer()
-                    
-                    Text(merchantFilter ?? category.name)
-                        .font(.system(.headline, design: .rounded))
-                        .foregroundColor(.textPrimary)
-                    
-                    Spacer()
-                    
-                    // Empty view for balance
-                    Color.clear
-                        .frame(width: 36, height: 36)
-                }
-                .padding(.horizontal)
-                .padding(.top)
-                .padding(.bottom, 8)
+        // CHANGE 2: Use NavigationView to simplify navigation
+        NavigationView {
+            ZStack {
+                // Background
+                Color.background
+                    .edgesIgnoringSafeArea(.all)
                 
-                // Category summary card
-                CategorySummaryCard(
-                    category: category,
-                    totalSpent: totalSpending,
-                    transactionCount: filteredTransactions.count,
-                    merchantName: merchantFilter
-                )
-                .padding(.horizontal)
-                .padding(.bottom)
-                
-                // Transaction list
-                if filteredTransactions.isEmpty {
-                    Spacer()
-                    VStack(spacing: 16) {
-                        Image(systemName: "leaf.fill")
-                            .font(.system(size: 50))
-                            .foregroundColor(.primaryGreen.opacity(0.5))
+                // Main content
+                VStack(spacing: 0) {
+                    // Header with back button and category name
+                    HStack {
+                        Button(action: {
+                            presentationMode.wrappedValue.dismiss()
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primaryGreen)
+                                .padding(8)
+                                .background(Color.secondaryGreen.opacity(0.2))
+                                .clipShape(Circle())
+                        }
                         
-                        Text("No transactions yet")
-                            .font(.system(.title3, design: .rounded))
+                        Spacer()
+                        
+                        Text(merchantFilter ?? category.name)
+                            .font(.system(.headline, design: .rounded))
                             .foregroundColor(.textPrimary)
                         
-                        Text("Your \(category.name.lowercased()) spending will appear here")
-                            .font(.system(.body, design: .rounded))
-                            .foregroundColor(.textSecondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding()
-                    Spacer()
-                } else {
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(filteredTransactions.sorted(by: { $0.date > $1.date })) { transaction in
-                                CategoryTransactionItem(transaction: transaction)
-                                    .padding(.horizontal)
-                            }
-                        }
-                        .padding(.vertical)
+                        Spacer()
                         
-                        // Bottom spacer for tab bar
-                        Spacer(minLength: 80)
+                        // Empty view for balance
+                        Color.clear
+                            .frame(width: 36, height: 36)
                     }
+                    .padding(.horizontal)
+                    .padding(.top)
+                    .padding(.bottom, 8)
+                    
+                    // Category summary card
+                    CategorySummaryCard(
+                        category: category,
+                        totalSpent: totalSpending,
+                        transactionCount: filteredTransactions.count,
+                        merchantName: merchantFilter
+                    )
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                    
+                    // Transaction list
+                    if filteredTransactions.isEmpty {
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Image(systemName: "leaf.fill")
+                                .font(.system(size: 50))
+                                .foregroundColor(.primaryGreen.opacity(0.5))
+                            
+                            Text("No transactions yet")
+                                .font(.system(.title3, design: .rounded))
+                                .foregroundColor(.textPrimary)
+                            
+                            Text("Your \(category.name.lowercased()) spending will appear here")
+                                .font(.system(.body, design: .rounded))
+                                .foregroundColor(.textSecondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding()
+                        Spacer()
+                    } else {
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                // CHANGE 3: Modified transaction item navigation
+                                ForEach(filteredTransactions.sorted(by: { $0.date > $1.date })) { transaction in
+                                    NavigationLink {
+                                        // This is what will be shown when the item is tapped
+                                        TransactionDetailView(transaction: transaction)
+                                    } label: {
+                                        // This is what will be displayed in the list
+                                        CategoryTransactionItem(transaction: transaction)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .padding(.horizontal)
+                                }
+                            }
+                            .padding(.vertical)
+                            
+                            // Bottom spacer for tab bar
+                            Spacer(minLength: 80)
+                        }
+                    }
+                }
+            }
+            .navigationBarHidden(true)
+            .onAppear {
+                print("🔍 CategoryTransactionsView appeared - \(filteredTransactions.count) transactions")
+                if merchantFilter != nil {
+                    print("🔍 Merchant filter: \(merchantFilter!)")
+                }
+                // Log transactions for debugging
+                for transaction in filteredTransactions {
+                    print("🔍 Transaction: \(transaction.merchant) - \(transaction.amount)")
                 }
             }
         }
@@ -210,51 +236,212 @@ struct CategoryTransactionItem: View {
     }
     
     var body: some View {
-        Button(action: {
-            // Placeholder for navigation to transaction details (Page 3)
-            print("Navigate to transaction details for \(transaction.id)")
-        }) {
-            HStack(spacing: 16) {
-                // Small category icon
-                ZStack {
-                    Circle()
-                        .fill(transaction.category.color.opacity(0.2))
-                        .frame(width: 40, height: 40)
-                    
-                    Image(systemName: transaction.category.icon)
-                        .font(.system(size: 16))
-                        .foregroundColor(transaction.category.color)
-                }
+        HStack(spacing: 16) {
+            // Small category icon
+            ZStack {
+                Circle()
+                    .fill(transaction.category.color.opacity(0.2))
+                    .frame(width: 40, height: 40)
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    // Natural language description
-                    Text(transactionDescription)
-                        .font(.system(.body, design: .rounded))
-                        .foregroundColor(.textPrimary)
-                        .lineLimit(2)
+                Image(systemName: transaction.category.icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(transaction.category.color)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                // Natural language description
+                Text(transactionDescription)
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(.textPrimary)
+                    .lineLimit(2)
+                
+                // Source type indicator
+                HStack(spacing: 4) {
+                    Image(systemName: sourceTypeIcon(transaction.sourceType))
+                        .font(.system(size: 12))
                     
-                    // Source type indicator
-                    HStack(spacing: 4) {
-                        Image(systemName: sourceTypeIcon(transaction.sourceType))
-                            .font(.system(size: 12))
-                        
-                        Text(sourceTypeName(transaction.sourceType))
-                            .font(.system(.caption, design: .rounded))
-                    }
-                    .foregroundColor(.textSecondary)
+                    Text(sourceTypeName(transaction.sourceType))
+                        .font(.system(.caption, design: .rounded))
                 }
+                .foregroundColor(.textSecondary)
+            }
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14))
+                .foregroundColor(.textSecondary)
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.03), radius: 3, x: 0, y: 1)
+    }
+    
+    // Helper for source type icon
+    private func sourceTypeIcon(_ sourceType: SourceType) -> String {
+        switch sourceType {
+        case .manual:
+            return "keyboard"
+        case .scanned:
+            return "camera"
+        case .digital:
+            return "doc.text"
+        }
+    }
+    
+    // Helper for source type name
+    private func sourceTypeName(_ sourceType: SourceType) -> String {
+        switch sourceType {
+        case .manual:
+            return "Manual Entry"
+        case .scanned:
+            return "Scanned Receipt"
+        case .digital:
+            return "Digital Invoice"
+        }
+    }
+}
+
+// CHANGE 4: Simplified TransactionDetailView
+struct TransactionDetailView: View {
+    let transaction: Transaction
+    @Environment(\.presentationMode) var presentationMode
+    
+    // Format amount - moved outside of body
+    private var formattedAmount: String {
+        let numberFormatter = NumberFormatter()
+        numberFormatter.numberStyle = .decimal
+        let amount = NSDecimalNumber(decimal: transaction.amount)
+        return "₹\(numberFormatter.string(from: amount) ?? amount.stringValue)"
+    }
+    
+    // Format date - moved outside of body
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter.string(from: transaction.date)
+    }
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Color.background
+                .edgesIgnoringSafeArea(.all)
+            
+            // Main content
+            VStack(spacing: 0) {
+                // Header with back button
+                HStack {
+                    Button(action: {
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primaryGreen)
+                            .padding(8)
+                            .background(Color.secondaryGreen.opacity(0.2))
+                            .clipShape(Circle())
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Transaction Details")
+                        .font(.system(.headline, design: .rounded))
+                        .foregroundColor(.textPrimary)
+                    
+                    Spacer()
+                    
+                    // Empty view for balance
+                    Color.clear
+                        .frame(width: 36, height: 36)
+                }
+                .padding(.horizontal)
+                .padding(.top)
+                .padding(.bottom, 16)
+                
+                // Transaction card with natural language
+                VStack(alignment: .center, spacing: 20) {
+                    // Merchant and category icon
+                    ZStack {
+                        Circle()
+                            .fill(transaction.category.color.opacity(0.2))
+                            .frame(width: 80, height: 80)
+                        
+                        Image(systemName: transaction.category.icon)
+                            .font(.system(size: 32))
+                            .foregroundColor(transaction.category.color)
+                    }
+                    
+                    // Natural language transaction info - simplified without local variables
+                    VStack(spacing: 8) {
+                        Text("You spent")
+                            .font(.system(.body, design: .rounded))
+                            .foregroundColor(.textSecondary)
+                        
+                        Text(formattedAmount)
+                            .font(.system(.title, design: .rounded))
+                            .fontWeight(.bold)
+                            .foregroundColor(.primaryGreen)
+                        
+                        Text("at \(transaction.merchant)")
+                            .font(.system(.title3, design: .rounded))
+                            .foregroundColor(.textPrimary)
+                        
+                        Text("on \(formattedDate)")
+                            .font(.system(.body, design: .rounded))
+                            .foregroundColor(.textSecondary)
+                    }
+                    .multilineTextAlignment(.center)
+                    
+                    // Transaction source and category
+                    VStack(spacing: 12) {
+                        HStack {
+                            Image(systemName: sourceTypeIcon(transaction.sourceType))
+                                .foregroundColor(.textSecondary)
+                            
+                            Text(sourceTypeName(transaction.sourceType))
+                                .font(.system(.body, design: .rounded))
+                                .foregroundColor(.textSecondary)
+                        }
+                        
+                        HStack {
+                            Image(systemName: "tag.fill")
+                                .foregroundColor(.textSecondary)
+                            
+                            Text(transaction.category.name)
+                                .font(.system(.body, design: .rounded))
+                                .foregroundColor(.textSecondary)
+                        }
+                    }
+                    
+                    // Notes if any
+                    if let notes = transaction.notes, !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Notes")
+                                .font(.system(.headline, design: .rounded))
+                                .foregroundColor(.textPrimary)
+                            
+                            Text(notes)
+                                .font(.system(.body, design: .rounded))
+                                .foregroundColor(.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(12)
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .padding(.horizontal)
                 
                 Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundColor(.textSecondary)
             }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.03), radius: 3, x: 0, y: 1)
         }
+        .navigationBarHidden(true)
     }
     
     // Helper for source type icon

@@ -12,6 +12,12 @@ struct CategoryDetailView: View {
         transactionStore.totalForCategory(category.name)
     }
     
+    // Get all transactions in this category
+    private var categoryTransactions: [Transaction] {
+        transactionStore.transactionsForCategory(category.name)
+            .sorted(by: { $0.date > $1.date }) // Sort by date, newest first
+    }
+    
     // Get all merchants in this category
     private var merchantsInCategory: [MerchantTotal] {
         transactionStore.getMerchantTotalsInCategory(categoryName: category.name)
@@ -58,14 +64,15 @@ struct CategoryDetailView: View {
                 CategorySummaryCard(
                     category: category,
                     totalSpent: totalSpending,
-                    transactionCount: transactionStore.transactionsForCategory(category.name).count,
+                    transactionCount: categoryTransactions.count,
                     merchantName: nil
                 )
                 .padding(.horizontal)
                 .padding(.bottom)
                 
-                // Merchants list
-                if merchantsInCategory.isEmpty {
+                // Content based on transactions or merchants
+                if categoryTransactions.isEmpty {
+                    // Empty state
                     Spacer()
                     VStack(spacing: 16) {
                         Image(systemName: "leaf.fill")
@@ -84,101 +91,115 @@ struct CategoryDetailView: View {
                     .padding()
                     Spacer()
                 } else {
-                    // Title for merchants section
-                    HStack {
-                        Text("Merchants")
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundColor(.textPrimary)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    
+                    // Show merchants instead of transactions directly
                     ScrollView {
                         VStack(spacing: 16) {
-                            ForEach(merchantsInCategory) { merchant in
+                            // Title for merchants section
+                            HStack {
+                                Text("Merchants")
+                                    .font(.system(.headline, design: .rounded))
+                                    .foregroundColor(.textPrimary)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            
+                            // List all merchants in this category
+                            ForEach(merchantsInCategory, id: \.merchantName) { merchant in
                                 MerchantListItem(
                                     merchantName: merchant.merchantName,
                                     icon: merchant.icon,
                                     amount: merchant.amount,
                                     count: merchant.count
-                                ) { merchantName in
-                                    selectedMerchant = merchantName
+                                )
+                                .padding(.horizontal)
+                                .onTapGesture {
+                                    selectedMerchant = merchant.merchantName
                                     navigateToMerchant = true
                                 }
-                                .padding(.horizontal)
                             }
                         }
-                        .padding(.vertical)
-                        
-                        // Bottom spacer for tab bar
-                        Spacer(minLength: 80)
+                        .padding(.bottom, 100) // For tab bar space
                     }
                 }
-            }
-            
-            // Hidden navigation link
-            NavigationLink(
-                destination: selectedMerchant.map { merchantName in
-                    MerchantTransactionsView(
-                        category: category,
-                        merchantName: merchantName
-                    )
-                },
-                isActive: $navigateToMerchant
-            ) {
-                EmptyView()
+                
+                // Navigation link for merchant details
+                NavigationLink(
+                    destination: selectedMerchant.map { merchantName in
+                        MerchantTransactionsView(
+                            category: category,
+                            merchantName: merchantName
+                        )
+                    },
+                    isActive: $navigateToMerchant
+                ) {
+                    EmptyView()
+                }
             }
         }
         .navigationBarHidden(true)
+        .onAppear {
+            print("🔍 CategoryDetailView appeared for \(category.name) - Transactions count: \(categoryTransactions.count)")
+            print("🔍 Merchants in category: \(merchantsInCategory.count)")
+        }
     }
 }
 
-// Merchant list item
+// Merchant list item component
 struct MerchantListItem: View {
     let merchantName: String
     let icon: String
     let amount: Decimal
     let count: Int
-    var onTap: (String) -> Void
     
     var body: some View {
-        Button(action: {
-            onTap(merchantName)
-        }) {
-            HStack(spacing: 16) {
-                // Merchant icon
-                ZStack {
-                    Circle()
-                        .fill(Color.primaryGreen.opacity(0.2))
-                        .frame(width: 48, height: 48)
-                    
-                    Image(systemName: icon)
-                        .font(.system(size: 20))
-                        .foregroundColor(.primaryGreen)
-                }
+        HStack(spacing: 16) {
+            // Merchant icon
+            ZStack {
+                Circle()
+                    .fill(Color.secondaryGreen.opacity(0.2))
+                    .frame(width: 44, height: 44)
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(merchantName)
-                        .font(.system(.body, design: .rounded))
-                        .fontWeight(.medium)
-                        .foregroundColor(.textPrimary)
-                    
-                    Text("\(count) transaction\(count != 1 ? "s" : "")")
-                        .font(.system(.caption, design: .rounded))
-                        .foregroundColor(.textSecondary)
-                }
-                
-                Spacer()
-                
-                Text("₹\(NSDecimalNumber(decimal: amount).stringValue)")
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundColor(.textPrimary)
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(.primaryGreen)
             }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.03), radius: 3, x: 0, y: 1)
+            
+            // Merchant name and transaction count
+            VStack(alignment: .leading, spacing: 4) {
+                Text(merchantName)
+                    .font(.system(.body, design: .rounded))
+                    .fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
+                
+                Text("\(count) transaction\(count != 1 ? "s" : "")")
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundColor(.textSecondary)
+            }
+            
+            Spacer()
+            
+            // Amount and chevron
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("₹\(NSDecimalNumber(decimal: amount).stringValue)")
+                    .font(.system(.body, design: .rounded))
+                    .fontWeight(.medium)
+                    .foregroundColor(.textPrimary)
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14))
+                    .foregroundColor(.textSecondary)
+            }
         }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.03), radius: 3, x: 0, y: 1)
+    }
+}
+
+struct CategoryDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        CategoryDetailView(category: Category.sample(name: "Food & Drink"))
     }
 }

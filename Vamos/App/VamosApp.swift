@@ -2,9 +2,9 @@ import SwiftUI
 
 @main
 struct VamosApp: App {
-    @State private var selectedTab: Tab = .cards
+    @State private var selectedTab: Tab = .home  // Changed from .cards to .home
     
-        var body: some Scene {
+    var body: some Scene {
         WindowGroup {
             ZStack {
                 // Content based on selected tab

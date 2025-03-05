@@ -5,24 +5,37 @@ struct MerchantTransactionsView: View {
     let merchantName: String
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject private var transactionStore = TransactionStore.shared
+    @State private var selectedTransaction: Transaction? = nil
+    @State private var navigateToTransaction = false
     
     // Get transactions for this merchant in this category
     private var merchantTransactions: [Transaction] {
-        // Check if this is an aggregator (Swiggy, Zomato, etc.)
-        if transactionStore.isKnownAggregator(merchantName) {
-            // Filter transactions by category and matching aggregator
-            return transactionStore.transactions.filter { transaction in
-                transaction.category.name == category.name && 
-                transaction.aggregator == merchantName
-            }
-        } else {
-            // For regular merchants, filter by category and merchant name
-            return transactionStore.transactions.filter { transaction in
-                transaction.category.name == category.name && 
-                transaction.merchant.lowercased().contains(merchantName.lowercased()) &&
-                transaction.aggregator == nil // Exclude transactions that came through aggregators
-            }
+        // First, filter by category
+        let categoryTransactions = transactionStore.transactions.filter { 
+            $0.category.name == category.name 
         }
+        
+        // Debug logging
+        print("🔍 DEBUG: Looking for merchant '\(merchantName)' in category '\(category.name)'")
+        print("🔍 DEBUG: Found \(categoryTransactions.count) transactions in this category")
+        
+        // Then filter by merchant name, considering both direct merchants and aggregators
+        let filteredTransactions = categoryTransactions.filter { transaction in
+            // For consistency with how merchants are grouped in CategoryDetailView
+            let groupKey = transaction.aggregator ?? transaction.merchant
+            
+            // Case-insensitive comparison
+            let result = groupKey.lowercased() == merchantName.lowercased()
+            
+            // Debug logging for each transaction
+            print("🔍 DEBUG: Transaction: \(transaction.merchant), Aggregator: \(transaction.aggregator ?? "None"), GroupKey: \(groupKey), Match: \(result)")
+            
+            return result
+        }
+        
+        print("🔍 DEBUG: Found \(filteredTransactions.count) transactions for merchant '\(merchantName)'")
+        
+        return filteredTransactions
     }
     
     // Calculate total spending for this merchant
@@ -110,8 +123,15 @@ struct MerchantTransactionsView: View {
                     ScrollView {
                         VStack(spacing: 16) {
                             ForEach(merchantTransactions.sorted(by: { $0.date > $1.date })) { transaction in
-                                TransactionListItem(transaction: transaction)
-                                    .padding(.horizontal)
+                                NavigationLink {
+                                    // Navigate to transaction detail view
+                                    TransactionDetailView(transaction: transaction)
+                                } label: {
+                                    // Use the natural language transaction item
+                                    CategoryTransactionItem(transaction: transaction)
+                                        .padding(.horizontal)
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         .padding(.vertical)
@@ -123,101 +143,16 @@ struct MerchantTransactionsView: View {
             }
         }
         .navigationBarHidden(true)
-    }
-}
-
-// Transaction list item with updated description for aggregator transactions
-struct TransactionListItem: View {
-    let transaction: Transaction
-    
-    // Natural language description of the transaction
-    private var transactionDescription: String {
-        // Format currency with appropriate formatting
-        let numberFormatter = NumberFormatter()
-        numberFormatter.numberStyle = .decimal
-        numberFormatter.minimumFractionDigits = 0
-        numberFormatter.maximumFractionDigits = 2
-        
-        let amount = NSDecimalNumber(decimal: transaction.amount)
-        let amountStr = "₹\(numberFormatter.string(from: amount) ?? amount.stringValue)"
-        
-        let dateStr = formatDate(transaction.date)
-        
-        // If this is an aggregator transaction, show the actual merchant
-        if transaction.aggregator != nil {
-            return "You spent \(amountStr) at \(transaction.merchant) on \(dateStr)"
-        } else {
-            return "You spent \(amountStr) at \(transaction.merchant) on \(dateStr)"
-        }
-    }
-    
-    // Format date for natural language
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMM yyyy"
-        return formatter.string(from: date)
-    }
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // Small category icon
-            ZStack {
-                Circle()
-                    .fill(transaction.category.color.opacity(0.2))
-                    .frame(width: 40, height: 40)
-                
-                Image(systemName: transaction.category.icon)
-                    .font(.system(size: 16))
-                    .foregroundColor(transaction.category.color)
-            }
+        .onAppear {
+            print("🔍 MerchantTransactionsView appeared for \(merchantName) - Transactions count: \(merchantTransactions.count)")
             
-            VStack(alignment: .leading, spacing: 8) {
-                // Natural language description
-                Text(transactionDescription)
-                    .font(.system(.body, design: .rounded))
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(2)
-                
-                // Source type indicator
-                HStack(spacing: 4) {
-                    Image(systemName: sourceTypeIcon(transaction.sourceType))
-                        .font(.system(size: 12))
-                    
-                    Text(sourceTypeName(transaction.sourceType))
-                        .font(.system(.caption, design: .rounded))
+            // Log each transaction for debugging
+            if !merchantTransactions.isEmpty {
+                print("🔍 Merchant transactions:")
+                merchantTransactions.forEach { transaction in
+                    print("  - \(transaction.merchant): ₹\(transaction.amount) on \(transaction.date)")
                 }
-                .foregroundColor(.textSecondary)
             }
-            
-            Spacer()
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.03), radius: 3, x: 0, y: 1)
-    }
-    
-    // Helper for source type icon
-    private func sourceTypeIcon(_ sourceType: SourceType) -> String {
-        switch sourceType {
-        case .manual:
-            return "keyboard"
-        case .scanned:
-            return "camera"
-        case .digital:
-            return "doc.text"
-        }
-    }
-    
-    // Helper for source type name
-    private func sourceTypeName(_ sourceType: SourceType) -> String {
-        switch sourceType {
-        case .manual:
-            return "Manual Entry"
-        case .scanned:
-            return "Scanned Receipt"
-        case .digital:
-            return "Digital Invoice"
         }
     }
 }
@@ -238,7 +173,7 @@ struct MerchantSummaryCard: View {
                         .fill(category.color.opacity(0.2))
                         .frame(width: 56, height: 56)
                     
-                    Image(systemName: TransactionStore.shared.iconForMerchant(merchantName))
+                    Image(systemName: category.icon)
                         .font(.system(size: 24))
                         .foregroundColor(category.color)
                 }
