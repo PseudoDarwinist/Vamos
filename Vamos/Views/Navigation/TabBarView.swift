@@ -3,7 +3,6 @@ import SwiftUI
 enum Tab {
     case home
     case categories
-    case cards // Renamed from history
     case settings
 }
 
@@ -21,9 +20,6 @@ struct TabBarView: View {
                 // Camera button space
                 Spacer()
                     .frame(width: 80)
-                
-                // Replace the chart.bar icon with creditcard.fill
-                tabButton(title: "", icon: "creditcard.fill", tab: .cards) // Updated
                 
                 tabButton(title: "", icon: "gearshape", tab: .settings)
             }
@@ -90,14 +86,6 @@ struct TabBarView: View {
         ) { _ in
             selectedTab = .home
         }
-        
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("NavigateToCardsView"),
-            object: nil,
-            queue: .main
-        ) { _ in
-            selectedTab = .cards
-        }
     }
     
     // Remove notification observers
@@ -105,12 +93,6 @@ struct TabBarView: View {
         NotificationCenter.default.removeObserver(
             self,
             name: NSNotification.Name("NavigateToHomeView"),
-            object: nil
-        )
-        
-        NotificationCenter.default.removeObserver(
-            self,
-            name: NSNotification.Name("NavigateToCardsView"),
             object: nil
         )
     }

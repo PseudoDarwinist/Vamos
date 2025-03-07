@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct VamosApp: App {
-    @State private var selectedTab: Tab = .home  // Changed from .cards to .home
+    @State private var selectedTab: Tab = .home
     
     // Initialize UserProfileStore at app startup
     private let profileStore = UserProfileStore.shared
@@ -17,8 +17,6 @@ struct VamosApp: App {
                         HomeView()
                     case .categories:
                         CategoriesView()
-                    case .cards: // Updated from .history
-                        CardsView() // Our new view
                     case .settings:
                         SettingsView()
                     }
