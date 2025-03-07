@@ -43,6 +43,12 @@ struct TabBarView: View {
         .sheet(isPresented: $showScanner) {
             ScannerView()
         }
+        .onAppear {
+            setupNotificationObservers()
+        }
+        .onDisappear {
+            removeNotificationObservers()
+        }
     }
     
     private func tabButton(title: String, icon: String, tab: Tab) -> some View {
@@ -73,6 +79,40 @@ struct TabBarView: View {
             }
             .frame(maxWidth: .infinity)
         }
+    }
+    
+    // Setup notification observers for navigation requests
+    private func setupNotificationObservers() {
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("NavigateToHomeView"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            selectedTab = .home
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("NavigateToCardsView"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            selectedTab = .cards
+        }
+    }
+    
+    // Remove notification observers
+    private func removeNotificationObservers() {
+        NotificationCenter.default.removeObserver(
+            self,
+            name: NSNotification.Name("NavigateToHomeView"),
+            object: nil
+        )
+        
+        NotificationCenter.default.removeObserver(
+            self,
+            name: NSNotification.Name("NavigateToCardsView"),
+            object: nil
+        )
     }
 }
 

@@ -192,6 +192,9 @@ struct PDFDocumentView: View {
                     case .finished:
                         print("✅ PDFDocumentView: PDF processing completed successfully")
                         // Success will be handled in receiveValue
+                        // Dismiss this view and navigate to home
+                        NotificationCenter.default.post(name: NSNotification.Name("NavigateToHomeView"), object: nil)
+                        self.presentationMode.wrappedValue.dismiss()
                     case .failure(let error):
                         print("🔴 PDFDocumentView: PDF processing failed: \(error.localizedDescription)")
                         processingError = "Failed to process document: \(error.localizedDescription)"
@@ -200,11 +203,8 @@ struct PDFDocumentView: View {
                 receiveValue: { transaction in
                     print("📄 PDFDocumentView: Received transaction data: \(transaction.merchant), \(transaction.amount)")
                     
-                    // Store transaction for editing
-                    self.transactionResult = transaction
-                    
-                    // Show transaction edit view
-                    self.showTransactionEdit = true
+                    // Store the transaction directly without showing edit view
+                    TransactionStore.shared.addTransaction(transaction)
                 }
             )
             .store(in: &cancellables)

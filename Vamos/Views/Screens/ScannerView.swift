@@ -194,7 +194,8 @@ private func processReceipt() {
             switch completion {
             case .finished:
                 print("✅ Data extraction completed")
-                // Just dismiss this view - the transaction is already added to the store
+                // Dismiss this view and notify that we should navigate to home
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateToHomeView"), object: nil)
                 self.presentationMode.wrappedValue.dismiss()
             case .failure(let error):
                 print("❌ Receipt processing failed: \(error.localizedDescription)")

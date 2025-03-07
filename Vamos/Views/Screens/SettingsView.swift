@@ -2,7 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject private var transactionStore = TransactionStore.shared
+    @ObservedObject private var profileStore = UserProfileStore.shared
     @State private var showClearDataAlert = false
+    @State private var showProfileView = false
     
     var body: some View {
         ZStack {
@@ -21,6 +23,37 @@ struct SettingsView: View {
                 
                 ScrollView {
                     VStack(spacing: 16) {
+                        // Profile section
+                        Button(action: {
+                            showProfileView = true
+                        }) {
+                            HStack {
+                                // Profile image
+                                ProfileImageView(image: profileStore.profileImage, size: 60)
+                                
+                                // User info
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(profileStore.userName)
+                                        .font(.system(.headline, design: .rounded))
+                                        .foregroundColor(.textPrimary)
+                                    
+                                    Text("Tap to edit profile")
+                                        .font(.system(.subheadline, design: .rounded))
+                                        .foregroundColor(.textSecondary)
+                                }
+                                .padding(.leading, 8)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.textSecondary)
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
+                        
                         // Settings sections
                         SettingsSectionView(title: "General") {
                             // App Version
@@ -78,6 +111,9 @@ struct SettingsView: View {
                     },
                     secondaryButton: .cancel()
                 )
+            }
+            .sheet(isPresented: $showProfileView) {
+                ProfileView()
             }
         }
     }
