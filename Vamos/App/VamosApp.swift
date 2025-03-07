@@ -4,6 +4,9 @@ import SwiftUI
 struct VamosApp: App {
     @State private var selectedTab: Tab = .home  // Changed from .cards to .home
     
+    // Initialize UserProfileStore at app startup
+    private let profileStore = UserProfileStore.shared
+    
     var body: some Scene {
         WindowGroup {
             ZStack {

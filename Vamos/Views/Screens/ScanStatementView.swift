@@ -331,7 +331,9 @@ struct ScanStatementView: View {
                     switch completion {
                     case .finished:
                         // Successfully processed with Gemini
-                        break
+                        // Dismiss this view and navigate back to cards view
+                        NotificationCenter.default.post(name: NSNotification.Name("NavigateToCardsView"), object: nil)
+                        self.presentationMode.wrappedValue.dismiss()
                     case .failure(let error):
                         print("Error processing with Gemini: \(error.localizedDescription)")
                         // Fall back to OCR processing
@@ -408,11 +410,45 @@ struct ScanStatementView: View {
                         }
                     }
                     
-                    self.extractedData = statementData
-                    self.showVerification = true
+                    // Automatically create and save the cashback entry
+                    self.autoSaveCashbackEntry(statementData)
                 }
             )
             .store(in: &cancellables)
+    }
+    
+    // New method to automatically save cashback entry
+    private func autoSaveCashbackEntry(_ statementData: OCRService.StatementData) {
+        // Find matching card if card number is extracted
+        var cardId: UUID?
+        if let cardNumber = statementData.cardNumber {
+            if let matchingCard = cardStore.cards.first(where: { $0.lastFourDigits == cardNumber }) {
+                cardId = matchingCard.id
+            } else if let firstCard = cardStore.cards.first {
+                // Fallback to first card if no match
+                cardId = firstCard.id
+            }
+        } else if let firstCard = cardStore.cards.first {
+            // Fallback to first card if no card number
+            cardId = firstCard.id
+        }
+        
+        // If we have a card and amount, create the entry
+        if let cardId = cardId, let amount = statementData.cashbackAmount {
+            let periodStart = statementData.periodStart ?? Date()
+            let periodEnd = statementData.periodEnd ?? Date()
+            
+            let newEntry = CashbackEntry(
+                cardId: cardId,
+                periodStart: periodStart,
+                periodEnd: periodEnd,
+                amount: amount,
+                notes: nil,
+                source: .statement
+            )
+            
+            CashbackStore.shared.addEntry(newEntry)
+        }
     }
     
     // Fallback to OCR if Gemini fails
@@ -424,15 +460,18 @@ struct ScanStatementView: View {
                     isProcessing = false
                     switch completion {
                     case .finished:
-                        break
+                        // Successfully processed with OCR
+                        // Dismiss this view and navigate back to cards view
+                        NotificationCenter.default.post(name: NSNotification.Name("NavigateToCardsView"), object: nil)
+                        self.presentationMode.wrappedValue.dismiss()
                     case .failure(let error):
                         print("Error processing statement with OCR: \(error.localizedDescription)")
                         errorMessage = "Failed to extract statement data. Please try again or use manual entry."
                     }
                 },
                 receiveValue: { statementData in
-                    self.extractedData = statementData
-                    self.showVerification = true
+                    // Automatically save the cashback entry
+                    self.autoSaveCashbackEntry(statementData)
                 }
             )
             .store(in: &cancellables)

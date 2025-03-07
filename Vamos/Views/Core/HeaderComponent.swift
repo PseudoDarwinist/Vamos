@@ -2,6 +2,8 @@ import SwiftUI
 
 struct HeaderComponent: View {
     let monthSummary: MonthSummary
+    @ObservedObject private var profileStore = UserProfileStore.shared
+    @State private var showProfileView = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -14,13 +16,11 @@ struct HeaderComponent: View {
                 
                 Spacer()
                 
-                // User profile access
+                // User profile access - now using ProfileImageView
                 Button(action: {
-                    // Action for user profile
+                    showProfileView = true
                 }) {
-                    Image(systemName: "person.crop.circle")
-                        .font(.system(size: 24))
-                        .foregroundColor(.primaryGreen)
+                    ProfileImageView(image: profileStore.profileImage, size: 50)
                 }
             }
             .padding(.bottom, 8)
@@ -59,6 +59,9 @@ struct HeaderComponent: View {
             }
         )
         .cornerRadius(16)
+        .sheet(isPresented: $showProfileView) {
+            ProfileView()
+        }
     }
 }
 
