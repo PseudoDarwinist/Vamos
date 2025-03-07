@@ -200,7 +200,7 @@ class TransactionStore: ObservableObject {
                   merchant.contains("investment") || merchant.contains("loan") || merchant.contains("credit") {
             return "banknote"
         } else {
-            return "creditcard.fill"
+            return "tag.fill"
         }
     }
     
