@@ -286,6 +286,7 @@ class LandingAIService {
                         }
                         result["category"] = category
                         
+                        // Return the processed result
                         return Just(result)
                             .setFailureType(to: Error.self)
                             .eraseToAnyPublisher()

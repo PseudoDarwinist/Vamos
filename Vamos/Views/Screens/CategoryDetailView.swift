@@ -61,7 +61,7 @@ struct CategoryDetailView: View {
                 .padding(.bottom, 8)
                 
                 // Category summary card
-                CategorySummaryCard(
+                CategoryTransactionSummaryCard(
                     category: category,
                     totalSpent: totalSpending,
                     transactionCount: categoryTransactions.count,
@@ -124,16 +124,11 @@ struct CategoryDetailView: View {
                 }
                 
                 // Navigation link for merchant details
-                NavigationLink(
-                    destination: selectedMerchant.map { merchantName in
-                        MerchantTransactionsView(
-                            category: category,
-                            merchantName: merchantName
-                        )
-                    },
-                    isActive: $navigateToMerchant
-                ) {
-                    EmptyView()
+                if let selectedMerchant = selectedMerchant {
+                    NavigationLink(destination: MerchantTransactionsView(category: category, merchantName: selectedMerchant), isActive: $navigateToMerchant) {
+                        EmptyView()
+                    }
+                    .hidden()
                 }
             }
         }

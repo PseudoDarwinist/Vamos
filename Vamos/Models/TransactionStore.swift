@@ -84,7 +84,7 @@ class TransactionStore: ObservableObject {
         
         var categoryTotals: [CategoryTotal] = []
         
-        for (categoryName, categoryTransactions) in grouped {
+        for (_, categoryTransactions) in grouped {
             let total = categoryTransactions.reduce(0) { $0 + $1.amount }
             
             // Get the category from the first transaction

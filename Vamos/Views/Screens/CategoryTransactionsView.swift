@@ -141,7 +141,7 @@ struct CategoryTransactionsView: View {
                     .padding(.bottom, 8)
                     
                     // Category summary card
-                    CategorySummaryCard(
+                    CategoryTransactionSummaryCard(
                         category: category,
                         totalSpent: totalSpending,
                         transactionCount: filteredTransactions.count,
@@ -466,6 +466,70 @@ struct TransactionDetailView: View {
         case .digital:
             return "Digital Invoice"
         }
+    }
+}
+
+// MARK: - NumberFormatter Extension
+extension NumberFormatter {
+    static let currency: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }()
+}
+
+// MARK: - Category Transaction Summary Card
+struct CategoryTransactionSummaryCard: View {
+    let category: Category
+    let totalSpent: Decimal
+    let transactionCount: Int
+    let merchantName: String?
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Category icon and name
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(category.color.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                    
+                    Image(systemName: category.icon)
+                        .font(.system(size: 22))
+                        .foregroundColor(category.color)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(merchantName ?? category.name)
+                        .font(.system(.title3, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.textPrimary)
+                    
+                    Text("\(transactionCount) transaction\(transactionCount == 1 ? "" : "s")")
+                        .font(.system(.subheadline, design: .rounded))
+                        .foregroundColor(.textSecondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Total Spent")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundColor(.textSecondary)
+                    
+                    Text("₹\(NumberFormatter.currency.string(from: totalSpent as NSNumber) ?? totalSpent.description)")
+                        .font(.system(.title3, design: .rounded))
+                        .fontWeight(.bold)
+                        .foregroundColor(.primaryGreen)
+                }
+            }
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 }
 

@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "slip_01.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

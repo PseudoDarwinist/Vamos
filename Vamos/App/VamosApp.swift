@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreData
 
 @main
 struct VamosApp: App {
@@ -6,6 +7,9 @@ struct VamosApp: App {
     
     // Initialize UserProfileStore at app startup
     private let profileStore = UserProfileStore.shared
+    
+    // Initialize PersistenceManager for CoreData
+    private let persistenceManager = PersistenceManager.shared
     
     var body: some Scene {
         WindowGroup {
@@ -17,6 +21,10 @@ struct VamosApp: App {
                         HomeView()
                     case .categories:
                         CategoriesView()
+                    case .creditCard:
+                        NavigationView {
+                            CardStatementUploadView()
+                        }
                     case .settings:
                         SettingsView()
                     }
@@ -30,6 +38,15 @@ struct VamosApp: App {
                 .edgesIgnoringSafeArea(.bottom)
             }
             .background(Color.background.edgesIgnoringSafeArea(.all))
+            .onChange(of: scenePhase) { oldPhase, newPhase in
+                if newPhase == .background {
+                    // Save CoreData changes when app goes to background
+                    persistenceManager.saveViewContext()
+                }
+            }
         }
     }
+    
+    // Scene phase to track app lifecycle
+    @Environment(\.scenePhase) private var scenePhase
 }

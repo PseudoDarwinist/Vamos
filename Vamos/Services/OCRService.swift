@@ -199,4 +199,218 @@ func processReceipt(image: UIImage) -> AnyPublisher<Transaction, Error> {
         // If we reach here, this is not an aggregator receipt
         return (merchant, nil)
     }
+    
+    // MARK: - Credit Card Statement OCR Processing
+    
+    /// Performs OCR on an array of images (for credit card statements)
+    /// - Parameters:
+    ///   - images: Array of CGImage objects to process
+    ///   - progressCallback: Optional callback for progress updates
+    /// - Returns: Array of extracted text strings, one per image
+    func performOCR(on images: [CGImage], progressCallback: ((Double) -> Void)? = nil) async throws -> [String] {
+        print("🔍 OCR: Starting OCR processing on \(images.count) images")
+        
+        return try await withThrowingTaskGroup(of: (Int, String).self) { group -> [String] in
+            // Add OCR tasks for each image
+            for (index, image) in images.enumerated() {
+                group.addTask {
+                    let text = try await self.extractText(from: image)
+                    return (index, text)
+                }
+            }
+            
+            // Collect results in order
+            var results = Array(repeating: "", count: images.count)
+            var completedCount = 0
+            
+            for try await (index, text) in group {
+                results[index] = text
+                completedCount += 1
+                
+                // Report progress
+                let progress = Double(completedCount) / Double(images.count)
+                await MainActor.run {
+                    progressCallback?(progress)
+                }
+            }
+            
+            print("✅ OCR: Completed OCR processing on \(images.count) images")
+            return results
+        }
+    }
+    
+    /// Extracts text from a single image using Vision
+    /// - Parameter image: CGImage to extract text from
+    /// - Returns: Extracted text string
+    private func extractText(from image: CGImage) async throws -> String {
+        let request = createOptimizedTextRequest()
+        
+        // Enable recognizing text in tables by preserving layout
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.recognitionLanguages = ["en-IN", "en-US", "en-GB", "en"]
+        
+        // Improve recognition of tabular data and preserve spatial layout
+        request.revision = 3 // Use latest Vision framework revision
+        
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            do {
+                try handler.perform([request])
+                
+                guard let observations = request.results else {
+                    continuation.resume(throwing: OCRError.noResults)
+                    return
+                }
+                
+                // Sort observations by Y-coordinate (top to bottom)
+                let sortedObservations = observations.sorted { (obs1, obs2) -> Bool in
+                    let rect1 = obs1.boundingBox
+                    let rect2 = obs2.boundingBox
+                    return rect1.midY > rect2.midY
+                }
+                
+                // Group text by rows based on Y-coordinate proximity
+                var currentY: CGFloat = -1
+                var rows: [[VNRecognizedTextObservation]] = []
+                var currentRow: [VNRecognizedTextObservation] = []
+                
+                for observation in sortedObservations {
+                    if currentY == -1 {
+                        currentY = observation.boundingBox.midY
+                        currentRow.append(observation)
+                    } else if abs(observation.boundingBox.midY - currentY) < 0.02 { // Threshold for same row
+                        currentRow.append(observation)
+                    } else {
+                        // Sort observations in row by X-coordinate (left to right)
+                        let sortedRow = currentRow.sorted { $0.boundingBox.minX < $1.boundingBox.minX }
+                        rows.append(sortedRow)
+                        
+                        // Start new row
+                        currentRow = [observation]
+                        currentY = observation.boundingBox.midY
+                    }
+                }
+                
+                // Add the last row
+                if !currentRow.isEmpty {
+                    let sortedRow = currentRow.sorted { $0.boundingBox.minX < $1.boundingBox.minX }
+                    rows.append(sortedRow)
+                }
+                
+                // Build text preserving row structure
+                let extractedText = rows.map { rowObservations in
+                    rowObservations.compactMap { observation in
+                        observation.topCandidates(1).first?.string
+                    }.joined(separator: " ")
+                }.joined(separator: "\n")
+                
+                print("✅ OCR: Extracted \(extractedText.count) characters with table structure preserved")
+                continuation.resume(returning: extractedText)
+            } catch {
+                print("🔴 OCR: Error performing OCR - \(error.localizedDescription)")
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+    
+    /// Create an optimized text recognition request for credit card statements
+    private func createOptimizedTextRequest(recognitionLevel: VNRequestTextRecognitionLevel = .accurate) -> VNRecognizeTextRequest {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = recognitionLevel
+        
+        // For accurate recognition, use language correction and multiple languages
+        if recognitionLevel == .accurate {
+            request.usesLanguageCorrection = true
+            request.recognitionLanguages = ["en-IN", "en-US", "en-GB", "en"]
+            
+            // Add custom words for better recognition in financial contexts
+            request.customWords = [
+                "UPI", "HDFC", "SBI", "ICICI", "AXIS", "NEFT", "IMPS", "RTGS", 
+                "AMAZON", "SWIGGY", "ZOMATO", "FLIPKART", "CREDIT", "DEBIT",
+                "STATEMENT", "INVOICE", "PAYMENT", "TRANSACTION", "REFUND",
+                "CASHBACK", "WITHDRAWAL", "DEPOSIT", "BALANCE", "TOTAL"
+            ]
+            
+            // Set minimum text height to skip very small text
+            request.minimumTextHeight = 0.01
+        } else {
+            // For fast recognition, prioritize speed over accuracy
+            request.usesLanguageCorrection = false
+            request.recognitionLanguages = ["en"]
+            // No custom words or minimum text height to speed up processing
+        }
+        
+        return request
+    }
+    
+    /// Performs quick OCR on a single image for page filtering
+    /// - Parameter image: CGImage to perform quick OCR on
+    /// - Returns: Extracted text as a string
+    func quickOCR(_ image: CGImage) async throws -> String {
+        // Create a request with fast recognition level, but with some optimizations
+        let request = VNRecognizeTextRequest()
+        
+        // Using accurate mode for the initial page scan since we're having detection issues
+        // This is a trade-off: slightly slower first pass but more reliable detection
+        request.recognitionLevel = .accurate
+        
+        // Enable language correction for better text recognition
+        request.usesLanguageCorrection = true
+        
+        // Include relevant languages for Indian financial documents
+        request.recognitionLanguages = ["en-IN", "en-US", "en"]
+        
+        // Add financial keywords specific to Indian bank statements
+        request.customWords = [
+            // Bank names
+            "SBI", "HDFC", "ICICI", "AXIS", "KOTAK", 
+            
+            // Transaction headers
+            "Date", "Transaction", "Details", "Amount", "Description",
+            "Particulars", "Narration", "Statement Period",
+            
+            // Transaction types
+            "UPI", "PAYMENT", "PURCHASE", "CREDIT", "DEBIT", "NEFT", "IMPS",
+            "RECEIVED", "TRANSFER", "PAID", "SURCHARGE", "WAIVER",
+            
+            // Currency markers
+            "₹", "INR", "RS", "Rupees"
+        ]
+        
+        // Process the entire image
+        request.minimumTextHeight = 0.01
+        
+        // Create the handler with the image
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            do {
+                try handler.perform([request])
+                
+                guard let observations = request.results else {
+                    continuation.resume(throwing: OCRError.noResults)
+                    return
+                }
+                
+                // Extract text from observations and join with spaces to preserve table structure
+                let extractedText = observations.compactMap { observation in
+                    observation.topCandidates(1).first?.string
+                }.joined(separator: " ")
+                
+                print("✅ OCR: Quick OCR extracted \(extractedText.count) characters")
+                
+                continuation.resume(returning: extractedText)
+            } catch {
+                print("🔴 OCR: Error performing quick OCR - \(error.localizedDescription)")
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+}
+
+enum OCRError: Error {
+    case noResults
+    case processingFailed(String)
 }

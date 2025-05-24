@@ -1,6 +1,6 @@
 import Foundation
 
-struct CategorySummary: Identifiable, Codable {
+struct MonthlyCategorySummary: Identifiable, Codable {
     let id: UUID
     let category: Category
     let amount: Decimal
@@ -21,14 +21,14 @@ struct MonthSummary: Identifiable, Codable {
     let month: Date // First day of month
     let totalSpent: Decimal
     let transactionCount: Int
-    let categorySummaries: [CategorySummary]
+    let categorySummaries: [MonthlyCategorySummary]
     var narrativeSummary: String // Changed from 'let' to 'var'
     
     init(id: UUID = UUID(),
          month: Date,
          totalSpent: Decimal,
          transactionCount: Int,
-         categorySummaries: [CategorySummary],
+         categorySummaries: [MonthlyCategorySummary],
          narrativeSummary: String) {
         self.id = id
         self.month = month
@@ -62,7 +62,7 @@ extension MonthSummary {
         let firstDayOfMonth = calendar.date(from: components)!
         
         // Empty category summaries
-        let categorySummaries: [CategorySummary] = []
+        let categorySummaries: [MonthlyCategorySummary] = []
         
         return MonthSummary(
             month: firstDayOfMonth,

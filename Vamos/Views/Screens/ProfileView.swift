@@ -103,7 +103,7 @@ struct ProfileView: View {
                 selection: $selectedPhotoItem,
                 matching: .images
             )
-            .onChange(of: selectedPhotoItem) { newItem in
+            .onChange(of: selectedPhotoItem) { oldValue, newItem in
                 if let newItem = newItem {
                     Task {
                         if let data = try? await newItem.loadTransferable(type: Data.self),
