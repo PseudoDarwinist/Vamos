@@ -158,7 +158,7 @@ struct ScannerView: View {
                 Text("Select a receipt image")
                     .font(.system(.headline, design: .rounded))
             }
-            .onChange(of: selectedPhotoItem) { newItem in
+            .onChange(of: selectedPhotoItem) { oldValue, newItem in
                 if let newItem = newItem {
                     Task {
                         if let data = try? await newItem.loadTransferable(type: Data.self),
@@ -223,12 +223,20 @@ private func showTransactionEdit(for image: UIImage) {
         category: category
     )
     
-    // Create a hosting controller and present it
-    let hostingController = UIHostingController(rootView: editView)
-    UIApplication.shared.windows.first?.rootViewController?.present(hostingController, animated: true)
-    
-    // Dismiss the scanner view
-    self.presentationMode.wrappedValue.dismiss()
+    // Defer the presentation to avoid modifying state during view update
+    DispatchQueue.main.async {
+        // Create a hosting controller and present it
+        let hostingController = UIHostingController(rootView: editView)
+        
+        // Get current window scene and present on its key window
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.present(hostingController, animated: true)
+        }
+        
+        // Dismiss the scanner view
+        self.presentationMode.wrappedValue.dismiss()
+    }
 }
     
     private func tabButton(title: String, systemImage: String, tab: ScannerTab) -> some View {

@@ -29,43 +29,45 @@ struct PDFDocumentView: View {
                 .foregroundColor(.primaryGreen)
                 .padding(.top)
             
-            // PDF preview
-            ZStack {
-                if let pdf = pdfDocument {
-                    VStack {
-                        // PDF name
-                        Text(documentName)
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundColor(.textPrimary)
-                            .lineLimit(1)
-                            .padding(.bottom, 4)
-                        
-                        // PDF preview
-                        PDFKitView(pdf: pdf)
-                            .frame(height: 400)
-                            .cornerRadius(12)
+            // PDF preview - Hide during processing
+            if !isProcessing {
+                ZStack {
+                    if let pdf = pdfDocument {
+                        VStack {
+                            // PDF name
+                            Text(documentName)
+                                .font(.system(.headline, design: .rounded))
+                                .foregroundColor(.textPrimary)
+                                .lineLimit(1)
+                                .padding(.bottom, 4)
+                            
+                            // PDF preview
+                            PDFKitView(pdf: pdf)
+                                .frame(height: 400)
+                                .cornerRadius(12)
+                        }
+                    } else {
+                        // Placeholder
+                        VStack {
+                            Image(systemName: "doc.viewfinder")
+                                .font(.system(size: 60))
+                                .foregroundColor(.primaryGreen.opacity(0.6))
+                            
+                            Text("No PDF Selected")
+                                .font(.system(.headline, design: .rounded))
+                                .foregroundColor(.textSecondary)
+                                .padding(.top)
+                        }
+                        .frame(height: 400)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.secondaryGreen.opacity(0.1))
+                        .cornerRadius(12)
                     }
-                } else {
-                    // Placeholder
-                    VStack {
-                        Image(systemName: "doc.viewfinder")
-                            .font(.system(size: 60))
-                            .foregroundColor(.primaryGreen.opacity(0.6))
-                        
-                        Text("No PDF Selected")
-                            .font(.system(.headline, design: .rounded))
-                            .foregroundColor(.textSecondary)
-                            .padding(.top)
-                    }
-                    .frame(height: 400)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.secondaryGreen.opacity(0.1))
-                    .cornerRadius(12)
                 }
             }
             
-            // Process PDF button (visible only when PDF is loaded)
-            if pdfDocument != nil {
+            // Process PDF button (visible only when PDF is loaded and not processing)
+            if pdfDocument != nil && !isProcessing {
                 Button(action: {
                     processPDFDocument()
                 }) {
@@ -80,25 +82,25 @@ struct PDFDocumentView: View {
                     .cornerRadius(12)
                     .font(.system(.headline, design: .rounded))
                 }
-                .disabled(isProcessing)
             }
             
-            // Select PDF button
-            Button(action: {
-                isShowingDocumentPicker = true
-            }) {
-                HStack {
-                    Image(systemName: "doc.badge.plus")
-                    Text("Select PDF")
+            // Select PDF button (only when not processing)
+            if !isProcessing {
+                Button(action: {
+                    isShowingDocumentPicker = true
+                }) {
+                    HStack {
+                        Image(systemName: "doc.badge.plus")
+                        Text("Select PDF")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.secondaryGreen.opacity(0.2))
+                    .foregroundColor(.primaryGreen)
+                    .cornerRadius(12)
+                    .font(.system(.headline, design: .rounded))
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.secondaryGreen.opacity(0.2))
-                .foregroundColor(.primaryGreen)
-                .cornerRadius(12)
-                .font(.system(.headline, design: .rounded))
             }
-            .disabled(isProcessing)
             
             // Error message
             if let error = processingError {
@@ -125,18 +127,10 @@ struct PDFDocumentView: View {
         .overlay(
             Group {
                 if isProcessing {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .progressViewStyle(CircularProgressViewStyle(tint: .primaryGreen))
-                        
-                        Text("Processing document...")
-                            .font(.system(.body, design: .rounded))
-                            .foregroundColor(.primaryGreen)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black.opacity(0.3))
-                    .edgesIgnoringSafeArea(.all)
+                    ProcessingProgressView(progress: .constant(0.5))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.3))
+                        .edgesIgnoringSafeArea(.all)
                 }
             }
         )

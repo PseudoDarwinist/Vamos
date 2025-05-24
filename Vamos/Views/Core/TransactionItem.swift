@@ -32,7 +32,7 @@ struct TransactionItem: View {
             
             // Amount and category
             VStack(alignment: .trailing, spacing: 4) {
-                Text("₹\(String(format: "%.2f", NSDecimalNumber(decimal: transaction.amount).doubleValue))")
+                Text("₹\(String(format: "%.0f", NSDecimalNumber(decimal: transaction.amount).doubleValue))")
                     .font(.system(.body, design: .rounded))
                     .fontWeight(.medium)
                     .foregroundColor(.textPrimary)

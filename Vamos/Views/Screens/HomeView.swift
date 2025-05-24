@@ -112,12 +112,12 @@ struct HomeView: View {
                     }
                     .padding(.top)
                     
-                    // Navigation link to CategoryDetailView (changed from CategoryDetailView to our common version)
-                    NavigationLink(
-                        destination: selectedCategory.map { CategoryDetailView(category: $0) },
-                        isActive: $navigateToCategory
-                    ) {
-                        EmptyView()
+                    // Navigation link to CategoryDetailView using updated syntax
+                    if let selectedCategory = selectedCategory {
+                        NavigationLink(destination: CategoryDetailView(category: selectedCategory), isActive: $navigateToCategory) {
+                            EmptyView()
+                        }
+                        .hidden()
                     }
                 }
                 

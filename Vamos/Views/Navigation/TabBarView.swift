@@ -3,6 +3,7 @@ import SwiftUI
 enum Tab {
     case home
     case categories
+    case creditCard
     case settings
 }
 
@@ -20,6 +21,9 @@ struct TabBarView: View {
                 // Camera button space
                 Spacer()
                     .frame(width: 80)
+                
+                // Credit Card tab
+                tabButton(title: "", icon: "creditcard", tab: .creditCard)
                 
                 tabButton(title: "", icon: "gearshape", tab: .settings)
             }

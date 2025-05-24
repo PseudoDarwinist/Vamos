@@ -95,11 +95,12 @@ struct CategoriesView: View {
                         .padding(.bottom, 100) // Allow for tab bar
                     }
                     
-                    NavigationLink(
-                        destination: selectedCategory.map { CategoryTransactionsView(category: $0) },
-                        isActive: $navigateToCategory
-                    ) {
-                        EmptyView()
+                    // Using NavigationLink with value instead of isActive
+                    if let selectedCategory = selectedCategory {
+                        NavigationLink(destination: CategoryTransactionsView(category: selectedCategory), isActive: $navigateToCategory) {
+                            EmptyView()
+                        }
+                        .hidden()
                     }
                 }
             }
