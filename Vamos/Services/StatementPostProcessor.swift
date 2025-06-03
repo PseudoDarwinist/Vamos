@@ -7,8 +7,6 @@ class StatementPostProcessor {
     /// - Parameter statement: The raw statement data
     /// - Returns: The processed statement
     func process(_ statement: CreditCardStatement) -> CreditCardStatement {
-        print("📊 StatementPostProcessor: Post-processing statement data")
-        
         // Create a mutable copy of the statement
         var processedStatement = statement
         
@@ -76,23 +74,27 @@ class StatementPostProcessor {
                     updatedTransactions[i].derived = DerivedInfo()
                 }
                 updatedTransactions[i].derived?.category = "Fuel"
-                print("⛽️ StatementPostProcessor: Applied Fuel category to '\\(updatedTransactions[i].description)'")
             }
-            // Add other specific merchant rules here if needed
-            // e.g., Amazon -> Shopping, Swiggy -> Food & Dining
+            // Check for Swiggy Instamart first (Groceries) before general Swiggy (Food)
+            else if description.contains("swiggy") && description.contains("instamart") {
+                if updatedTransactions[i].derived == nil {
+                    updatedTransactions[i].derived = DerivedInfo()
+                }
+                updatedTransactions[i].derived?.category = "Groceries"
+            }
+            // General Swiggy and other food delivery (Food & Dining)
             else if description.contains("swiggy") || description.contains("zomato") || description.contains("dominos") || description.contains("kfc") || description.contains("mcdonalds") || description.contains("pizzahut") || description.contains("burger king") {
                 if updatedTransactions[i].derived == nil {
                     updatedTransactions[i].derived = DerivedInfo()
                 }
                 updatedTransactions[i].derived?.category = "Food & Dining"
-                 print("🍔 StatementPostProcessor: Applied Food & Dining category to '\\(updatedTransactions[i].description)'")
             }
+            // Groceries category (including other Instamart mentions)
             else if description.contains("bigbasket") || description.contains("grofers") || description.contains("blinkit") || description.contains("zepto") || description.contains("dmart") || description.contains("reliance fresh") || description.contains("instamart") {
                 if updatedTransactions[i].derived == nil {
                     updatedTransactions[i].derived = DerivedInfo()
                 }
                 updatedTransactions[i].derived?.category = "Groceries"
-                print("🛒 StatementPostProcessor: Applied Groceries category to '\\(updatedTransactions[i].description)'")
             }
             // ... add more rules as needed
         }
@@ -112,7 +114,6 @@ class StatementPostProcessor {
                     updatedTransactions[i].derived = DerivedInfo()
                 }
                 updatedTransactions[i].derived?.category = "UPI"
-                print("💳 StatementPostProcessor: Applied UPI category to '\\(updatedTransactions[i].description)'")
             }
         }
         return updatedTransactions

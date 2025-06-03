@@ -1131,11 +1131,14 @@ class GeminiService {
     private func buildPrompt(ocrText: String) -> String {
         // Create a prompt with schema information and OCR text
         return """
-        You are a specialized financial document parser for Indian credit card statements.
-        Your primary goal is to accurately extract ALL individual transactions.
-        Output ONLY valid JSON conforming to the schema below.
-
-        JSON Schema:
+        You are a specialized financial document parser for Indian credit card statements from banks like SBI, HDFC, ICICI, Axis, etc.
+        
+        YOUR ABSOLUTE PRIORITY: Extract EVERY SINGLE TRANSACTION with 100% ACCURACY. Each row in the transaction table MUST become one transaction in your output.
+        
+        ⚠️ CRITICAL TABLE PARSING WARNING ⚠️
+        The most common error is MISALIGNING data from different columns/rows. You MUST ensure that each transaction's date, description, and amount come from the SAME ROW in the table.
+        
+        Output ONLY valid JSON conforming to this schema:
         {
             "card": {
                 "name": "string", // e.g., "SBI Card", "HDFC Bank Credit Card"
@@ -1155,47 +1158,118 @@ class GeminiService {
             "transactions": [
                 {
                     "date": "YYYY-MM-DD",
-                    "description": "string",
-                    "amount": number, // Always positive
+                    "description": "string", // EXACT merchant/description as it appears
+                    "amount": number, // Always positive, exact amount from statement
                     "type": "debit" | "credit", // "debit" for purchases/charges, "credit" for payments/refunds
-                    "currency": "string", // Default to "INR" if not specified
-                    // "reference": "string?", // Optional reference number, if clearly available for a transaction
-                    "category": "string", // Best guess based on description (e.g., "Food", "Shopping", "Travel", "Payment")
-                    "fx": { // Only if foreign currency transaction
-                        "originalAmount": number,
-                        "originalCurrency": "string",
-                        "rate": number
-                    }
+                    "category": "string" // Best guess: UPI, Food, Shopping, Fuel, etc.
                 }
             ]
         }
 
-        CRITICAL TRANSACTION EXTRACTION RULES:
-        1.  **Row-by-Row Processing:** The OCR text contains lines that represent a table or list of transactions. Each distinct transaction usually occupies its own row or a set of closely related lines. Process the text line by line.
-        2.  **Accurate Association:** For each transaction, correctly associate the date, description, amount, and type (credit/debit) that belong together on the SAME ROW or logical transaction entry. DO NOT misalign data from different rows.
-        3.  **Handle Non-Transaction Lines:** IGNORE lines that are clearly headers (e.g., "TRANSACTIONS FOR...", "Date | Description | Amount"), footers, or any text that is not part of an actual transaction entry. Do not try to create transactions from these.
-        4.  **Payment Received & Waivers First:** Statements often list "PAYMENT RECEIVED" or "FUEL SURCHARGE WAIVER" with their amounts and types (usually 'credit') BEFORE the main list of debit transactions. Extract these as separate, individual credit transactions with their correct dates and amounts.
-        5.  **Main Transaction List:** After any initial credits, there will be a list of debit transactions. Extract each of these carefully.
-        6.  **Amount and Type:**
-            *   Amounts are always positive.
-            *   Determine 'type' based on context:
-                *   SBI Cards: 'C' usually means credit, 'D' usually means debit.
-                *   HDFC Cards: 'CR' usually means credit, 'DR' usually means debit.
-                *   "PAYMENT RECEIVED" is always "credit".
-                *   Most other entries are "debit".
-        7.  **Dates:** Format all dates as YYYY-MM-DD. If a year is abbreviated (e.g., '25 for 2025), expand it.
-        8.  **Currency:** Default to "INR" unless another currency is explicitly mentioned for a transaction.
-        9.  **Completeness:** Extract ALL transactions. Do not miss any. Pay close attention to the entire list.
-        10. **Order:** Keep transactions in the order they appear in the statement.
-        11. **No Merging:** Do NOT merge transactions that appear on separate lines, even if they look similar. Each line entry is a distinct transaction.
-        12. **Category Guessing:** For category, use keywords. Examples:
-            *   "UPI" in description -> "UPI"
-            *   "SWIGGY", "ZOMATO" -> "Food"
-            *   "AMAZON", "FLIPKART" -> "Shopping"
-            *   "BHARAT PETROLEUM", "INDIAN OIL" -> "Fuel"
-            *   "PAYMENT RECEIVED" -> "Payment"
-
-        Here's the statement text to parse:
+        🔍 **STEP-BY-STEP TABLE PARSING PROCESS:**
+        
+        **STEP 1: IDENTIFY THE TRANSACTION TABLE**
+        - Look for tabular data with columns like: Date | Description | Amount | Type
+        - Common headers: "Date", "Transaction Details", "Amount", "Cr/Dr" or "C/D"
+        - The table usually appears after summary information
+        
+        **STEP 2: IDENTIFY COLUMN STRUCTURE**
+        - Examine the first few rows to understand column positions
+        - Typical format: "DATE | DESCRIPTION | AMOUNT | TYPE"
+        - Note any separators (|, spaces, tabs) used between columns
+        
+        **STEP 3: PROCESS EACH ROW INDIVIDUALLY**
+        - Go through the table line by line
+        - For EACH row, identify which text belongs to which column
+        - NEVER take the description from one row and amount from another row
+        - NEVER skip rows or merge data from different rows
+        
+        **STEP 4: VALIDATE ROW DATA**
+        Before adding each transaction, verify:
+        - Does the date make sense? (should be within statement period)
+        - Does the amount look reasonable? (positive number)
+        - Does the description match the amount? (small amounts shouldn't have luxury descriptions)
+        
+        🔍 **PRECISE DATA EXTRACTION RULES:**
+        
+        📅 **DATE EXTRACTION:**
+        - Convert "DD MMM YY" to "YYYY-MM-DD" (e.g., "27 Mar 25" → "2025-03-27")
+        - If date appears to be wrong, double-check which column it came from
+        
+        📝 **DESCRIPTION EXTRACTION:**
+        - Use EXACT text from the description column
+        - Do NOT mix descriptions from different rows
+        - Common patterns: "UPI-MERCHANT NAME", "SWIGGY ORDER", "AMAZON.IN"
+        - If description seems too long, it might include data from next column
+        
+        💰 **AMOUNT EXTRACTION:**
+        - Extract EXACT numerical value from amount column
+        - Remove currency symbols: 3,845.64 → 3845.64, 26,560.00 → 26560.00
+        - If amount seems unrealistic for the description, re-check column alignment
+        
+        🏷️ **TYPE DETERMINATION:**
+        - SBI Cards: "C" = credit, "D" = debit
+        - HDFC Cards: "CR" = credit, "DR" = debit
+        - ICICI Cards: "Cr" = credit, "Dr" = debit
+        
+        ⚠️ **COMMON MISALIGNMENT ERRORS TO AVOID:**
+        
+        1. **Description-Amount Mismatch:**
+            ❌ WRONG: "UPI-Tea/Coffee Shop" with amount 25000.00 (amount too high for small purchase)
+            ✅ CORRECT: "UPI-Tea/Coffee Shop" with amount 120.00
+        
+        2. **Row Skipping:**
+            ❌ WRONG: Missing a transaction row entirely
+            ✅ CORRECT: Every visible row becomes a transaction
+        
+        3. **Column Drift:**
+            ❌ WRONG: Taking description from column 2, but amount from column 4 of next row
+            ✅ CORRECT: All data for one transaction comes from the same row
+        
+        4. **Data Merging:**
+            ❌ WRONG: Combining "UPI-MERCHANT A" and "UPI-MERCHANT B" into one transaction
+            ✅ CORRECT: Each merchant is a separate transaction
+        
+        🔍 **VERIFICATION CHECKLIST:**
+        After extracting each transaction, ask yourself:
+        - Does this combination of description + amount make logical sense?
+        - Is this amount reasonable for this merchant/description?
+        - Did I take all data from the same row?
+        - Are there any obvious mismatches (tiny amounts for expensive items, etc.)?
+        
+        📊 **TABLE PARSING EXAMPLE:**
+        If you see a table like:
+        ```
+        DD MMM YY  |  TRANSACTION DESCRIPTION     |  AMOUNT  |  TYPE
+        05 Mar 25  |  UPI-MERCHANT NAME          |  XXX.XX  |  D
+        06 Mar 25  |  STORE/WEBSITE NAME         |  XXX.XX  |  D  
+        07 Mar 25  |  UPI-ANOTHER MERCHANT       |  XXX.XX  |  D
+        ```
+        
+        Extract each row as a separate transaction:
+        1. date: "2025-03-05", description: "UPI-MERCHANT NAME", amount: XXX.XX
+        2. date: "2025-03-06", description: "STORE/WEBSITE NAME", amount: XXX.XX
+        3. date: "2025-03-07", description: "UPI-ANOTHER MERCHANT", amount: XXX.XX
+        
+        NEVER mix data from different rows - each row is one complete transaction.
+        
+        🏷️ **CATEGORY CLASSIFICATION:**
+        - UPI transactions: "UPI" (if description contains "UPI")
+        - Food delivery: "Food" (Swiggy, Zomato, restaurants, cafes)
+        - Fuel stations: "Fuel" (Bharat Petroleum, Indian Oil, HP, Shell)
+        - Groceries: "Groceries" (BigBasket, Instamart, D-Mart, local grocery stores)
+        - Shopping: "Shopping" (Amazon, Flipkart, Myntra)
+        - Payments: "Payment" (PAYMENT RECEIVED, NEFT, RTGS)
+        
+        💯 **FINAL QUALITY CHECK:**
+        Before outputting JSON:
+        1. Count visible transaction rows in the statement
+        2. Count transactions in your JSON output
+        3. These numbers should match exactly
+        4. Scan for obviously wrong amount-description pairs
+        5. Verify high-value transactions are legitimate (not parsing errors)
+        
+        Now extract ALL transactions from this Indian credit card statement, being extremely careful about table column alignment:
 
         \(ocrText)
         """

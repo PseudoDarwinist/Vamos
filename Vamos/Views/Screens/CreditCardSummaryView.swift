@@ -20,7 +20,7 @@ struct CreditCardSummaryView: View {
                 LazyVStack(spacing: 28) {
                     // Main Title with Cabinet Grotesk styling
                     Text("Credit Card Summary")
-                        .font(.system(size: 28, weight: .bold, design: .rounded)) // Cabinet Grotesk fallback
+                        .font(.creditCardTitle)
                         .tracking(0.2)
                         .foregroundColor(Color.adaptiveTextPrimaryPlayful(for: colorScheme))
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -93,12 +93,12 @@ struct EmptyStatementView: View {
             
             VStack(spacing: 12) {
                 Text("No Statement Data")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.sectionHeader)
                     .tracking(0.2)
                     .foregroundColor(Color.adaptiveTextPrimaryPlayful(for: colorScheme))
                 
                 Text("Upload a credit card statement to see your spending analysis")
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .font(.categoryLabel)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(nil)

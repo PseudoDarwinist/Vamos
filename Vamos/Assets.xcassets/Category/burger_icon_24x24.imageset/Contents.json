@@ -1,11 +1,11 @@
 {
   "images" : [
     {
+      "filename" : "burger_icon@3x.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "burger_icon@3x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

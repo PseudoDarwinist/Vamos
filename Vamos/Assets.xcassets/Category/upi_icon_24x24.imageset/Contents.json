@@ -1,11 +1,11 @@
 {
   "images" : [
     {
+      "filename" : "upi_icon@3x.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "upi_icon@3x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

@@ -176,47 +176,63 @@ struct CategoryPieChart: View {
 struct CreditCardTransactionRow: View {
     let transaction: StatementTransaction
     @Environment(\.colorScheme) var colorScheme
-    @State private var isPressed = false
     
-    private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "dd\nMMM" // "02\nMay" format
+    // Cache expensive computations
+    private let formattedDate: String
+    private let merchantName: String
+    private let categoryName: String
+    private let shouldShowUPIBadge: Bool
+    private let formattedAmount: String
+    
+    init(transaction: StatementTransaction) {
+        self.transaction = transaction
         
-        // Parse the date string from transaction
+        // Pre-compute all expensive operations once
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd\nMMM"
+        
         let inputFormatter = DateFormatter()
         inputFormatter.dateFormat = "yyyy-MM-dd"
         
         if let date = inputFormatter.date(from: transaction.date) {
-            return formatter.string(from: date)
+            self.formattedDate = formatter.string(from: date)
+        } else {
+            self.formattedDate = transaction.date
         }
         
-        // Fallback to just showing the raw date
-        return transaction.date
-    }
-    
-    private var merchantName: String {
-        // Extract clean merchant name
+        // Cache merchant name
         if let derived = transaction.derived {
-            return derived.merchant ?? transaction.description
+            self.merchantName = derived.merchant ?? transaction.description
+        } else {
+            self.merchantName = transaction.description
         }
-        return transaction.description
+        
+        // Cache category
+        self.categoryName = transaction.derived?.category ?? "Other"
+        
+        // Cache UPI badge check
+        self.shouldShowUPIBadge = categoryName.lowercased().contains("upi") || 
+                                  transaction.description.lowercased().contains("upi")
+        
+        // Cache formatted amount with sign for credits
+        if transaction.type == .credit {
+            self.formattedAmount = "+₹\(NSDecimalNumber(decimal: transaction.amount).intValue)"
+        } else {
+            self.formattedAmount = "₹\(NSDecimalNumber(decimal: transaction.amount).intValue)"
+        }
     }
     
-    private var categoryName: String {
-        transaction.derived?.category ?? "Other"
-    }
-    
-    private var shouldShowUPIBadge: Bool {
-        categoryName.lowercased().contains("upi") || 
-        transaction.description.lowercased().contains("upi")
+    // Color for amount based on transaction type
+    private var amountColor: Color {
+        return transaction.type == .credit ? .green : .red
     }
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Date stack
+            // Date stack - simplified
             VStack(alignment: .leading, spacing: 0) {
                 Text(formattedDate)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(.transactionDate)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
@@ -226,10 +242,10 @@ struct CreditCardTransactionRow: View {
             // Category icon
             CategoryIcon(category: categoryName)
             
-            // Transaction details
+            // Transaction details - simplified
             VStack(alignment: .leading, spacing: 4) {
                 Text(merchantName)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.merchantName)
                     .foregroundColor(Color.adaptiveTextPrimaryPlayful(for: colorScheme))
                     .lineLimit(1)
                 
@@ -240,10 +256,10 @@ struct CreditCardTransactionRow: View {
             
             Spacer()
             
-            // Amount
-            Text("₹\(NSDecimalNumber(decimal: transaction.amount).intValue)")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundColor(.accentRed)
+            // Amount - pre-computed
+            Text(formattedAmount)
+                .font(.amount)
+                .foregroundColor(amountColor)
         }
         .padding(12)
         .background(
@@ -254,11 +270,7 @@ struct CreditCardTransactionRow: View {
                 )
                 .fill(Color.adaptiveCardFillPlayful(for: colorScheme))
         )
-        .scaleEffect(isPressed ? 0.97 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isPressed)
-        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
-            isPressed = pressing
-        }, perform: {})
+        // Removed animation and state for better performance
     }
 }
 
@@ -337,11 +349,11 @@ struct CategoryIcon: View {
         Image(imageName)
             .resizable()
             .scaledToFit()
-            .frame(width: 24, height: 24)
+            .frame(width: 44, height: 44)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(iconColor.opacity(0.15))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 56, height: 56)
             )
     }
 }
@@ -353,7 +365,7 @@ struct Pill: View {
     
     var body: some View {
         Text(label.uppercased())
-            .font(.system(size: 9, weight: .semibold, design: .rounded))
+            .font(.badge)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(tint.opacity(0.15))
